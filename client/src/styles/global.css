@@ -1,0 +1,96 @@
+/* ===== Origin Tech Group · Org-Ops — Fluent-inspired design system ===== */
+:root {
+  /* Origin Tech Group brand: red + grey (sampled from the official logo) over Fluent neutrals */
+  --brand: #e00303;        /* primary red (logo + site theme-color) */
+  --brand-dark: #b00202;   /* hover/pressed */
+  --brand-700: #c20202;
+  --brand-100: #fdecec;    /* tint */
+  --brand-ink: #7a0202;    /* deep red for text on tint */
+  --gray-brand: #838584;   /* logo grey */
+  --accent: #e00303;
+  --positive: #107c41;     /* M365 green — used only for "active" status */
+
+  --bg: #faf9f8;
+  --surface: #ffffff;
+  --surface-2: #f3f2f1;
+  --rail: #f6f6f6;         /* left nav rail */
+  --line: #edebe9;
+  --line-strong: #d2d0ce;
+
+  --text: #1b1a19;
+  --text-2: #605e5c;
+  --text-3: #8a8886;
+  --danger: #c50f1f;
+  --warn: #8a6d00;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow-2: 0 1.6px 3.6px rgba(0,0,0,.08), 0 .3px .9px rgba(0,0,0,.06);
+  --shadow-8: 0 3.2px 7.2px rgba(0,0,0,.10), 0 .6px 1.8px rgba(0,0,0,.07);
+  --shadow-16: 0 6.4px 14.4px rgba(0,0,0,.13), 0 1.2px 3.6px rgba(0,0,0,.08);
+
+  --font: "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font-family: inherit; }
+
+/* ---- buttons ---- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 36px; padding: 0 18px; border-radius: 4px; border: 1px solid transparent;
+  font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--brand); color: #fff; }
+.btn-primary:hover { background: var(--brand-700); }
+.btn-primary:disabled { background: var(--line-strong); color: #fff; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--text); border-color: var(--line-strong); }
+.btn-ghost:hover { background: var(--surface-2); }
+.btn-subtle { background: transparent; color: var(--brand); height: 32px; padding: 0 10px; }
+.btn-subtle:hover { background: var(--brand-100); }
+.btn-danger { background: transparent; color: var(--danger); border-color: var(--line-strong); }
+.btn-danger:hover { background: #fdf3f4; border-color: var(--danger); }
+.btn-sm { height: 30px; padding: 0 12px; font-size: 13px; }
+
+/* ---- forms ---- */
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field label { font-size: 13px; font-weight: 600; color: var(--text); }
+.input, .select {
+  height: 38px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 4px;
+  font-size: 14px; background: var(--surface); color: var(--text); width: 100%;
+}
+.input:focus, .select:focus { outline: 2px solid var(--brand); outline-offset: -1px; border-color: var(--brand); }
+
+/* ---- misc ---- */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px;
+  border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+}
+.badge-core { background: var(--brand-100); color: var(--brand-700); }
+.badge-soon { background: var(--surface-2); color: var(--text-3); }
+.badge-admin { background: #eef3fb; color: #2b5cb8; }
+
+.spinner {
+  width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff;
+  border-radius: 50%; animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--text); color: #fff; padding: 12px 18px; border-radius: 6px;
+  box-shadow: var(--shadow-16); font-size: 14px; z-index: 100;
+}
+.toast.error { background: var(--danger); }
+.error-text { color: var(--danger); font-size: 13px; }
