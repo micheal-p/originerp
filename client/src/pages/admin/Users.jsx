@@ -1,0 +1,282 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { apiGet, apiPost, apiPatch, apiPut } from '../../api/client.js';
+import { SUITE_META } from '../../config/suites.js';
+import AppLayout from '../../components/AppLayout.jsx';
+import SuiteIcon from '../../components/SuiteIcon.jsx';
+
+const ROLE_LABEL = { super_admin: 'System Admin', manager: 'Manager', staff: 'Staff' };
+const ROLE_FILTERS = [
+  { key: '', label: 'All users' },
+  { key: 'super_admin', label: 'System Admins' },
+  { key: 'manager', label: 'Managers' },
+  { key: 'staff', label: 'Staff' },
+];
+
+/* ---- command-bar glyphs (SVG, no emoji) ---- */
+const I = {
+  addUser: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5 1.2 0 2.3.3 3.2.9"/><path d="M17 13v6M14 16h6"/></svg>,
+  refresh: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 11a8 8 0 1 0-.6 4"/><path d="M20 4v5h-5"/></svg>,
+  block: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg>,
+  check: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l4 4 10-10"/></svg>,
+  search: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8886" strokeWidth="1.7" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>,
+  kebab: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>,
+};
+
+function useClickOutside(ref, onOut) {
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) onOut(); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [ref, onOut]);
+}
+
+function SuiteGrantPicker({ catalog, value, onChange, disabled }) {
+  const map = useMemo(() => Object.fromEntries(value.map((g) => [g.key, g.role])), [value]);
+  const toggle = (key) => map[key] !== undefined ? onChange(value.filter((g) => g.key !== key)) : onChange([...value, { key, role: 'member' }]);
+  const setRole = (key, role) => onChange(value.map((g) => (g.key === key ? { ...g, role } : g)));
+  return (
+    <div className={`grant-grid ${disabled ? 'is-disabled' : ''}`}>
+      {catalog.map((s) => {
+        const on = map[s.key] !== undefined; const meta = SUITE_META[s.key] || {};
+        return (
+          <div key={s.key} className={`grant-row ${on ? 'on' : ''}`}>
+            <label className="grant-main">
+              <input type="checkbox" checked={on} disabled={disabled} onChange={() => toggle(s.key)} />
+              <span className="grant-icon" style={{ background: on ? meta.tint || 'var(--brand)' : '#c8c6c4' }}>
+                <SuiteIcon name={meta.icon || 'grid'} size={15} color="#fff" />
+              </span>
+              <span className="grant-name">{s.name}{s.status === 'soon' && <em> · soon</em>}</span>
+            </label>
+            {on && (
+              <select className="select grant-role" value={map[s.key]} disabled={disabled} onChange={(e) => setRole(s.key, e.target.value)}>
+                <option value="member">Member</option><option value="manager">Manager</option>
+              </select>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Modal({ title, onClose, children, wide }) {
+  return (
+    <div className="modal-overlay" onMouseDown={onClose}>
+      <div className={`modal ${wide ? 'modal-wide' : ''}`} onMouseDown={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h2>{title}</h2>
+          <button className="iconbtn dark" onClick={onClose} aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div className="modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+const EMPTY = { name: '', email: '', password: '', role: 'staff', jobTitle: '', department: '', suites: [] };
+
+export default function AdminUsers() {
+  const [users, setUsers] = useState([]);
+  const [catalog, setCatalog] = useState([]);
+  const [q, setQ] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [sortDir, setSortDir] = useState(1);
+  const [selected, setSelected] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [manage, setManage] = useState(null);
+  const [rowMenu, setRowMenu] = useState(null);
+
+  const flash = (msg, isErr) => { setToast({ msg, isErr }); setTimeout(() => setToast(null), 2800); };
+
+  const load = () =>
+    apiGet('/users').then((d) => setUsers(d.users)).catch((e) => flash(e.message, true)).finally(() => setLoading(false));
+
+  useEffect(() => { apiGet('/catalog').then((d) => setCatalog(d.suites)).catch(() => {}); load(); /* eslint-disable-next-line */ }, []);
+
+  const view = useMemo(() => {
+    let list = users;
+    if (roleFilter) list = list.filter((u) => u.role === roleFilter);
+    if (q.trim()) {
+      const rx = new RegExp(q.trim(), 'i');
+      list = list.filter((u) => rx.test(u.name) || rx.test(u.email) || rx.test(u.department || ''));
+    }
+    return [...list].sort((a, b) => a.name.localeCompare(b.name) * sortDir);
+  }, [users, roleFilter, q, sortDir]);
+
+  const replace = (u) => setUsers((l) => l.map((x) => (x.id === u.id ? u : x)));
+  const selectable = view.filter((u) => u.role !== 'super_admin');
+  const allChecked = selectable.length > 0 && selectable.every((u) => selected.has(u.id));
+  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(selectable.map((u) => u.id)));
+  const toggleOne = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const setStatus = async (u, status) => {
+    try { const d = await apiPatch(`/users/${u.id}/status`, { status }); replace(d.user); return true; }
+    catch (e) { flash(e.message, true); return false; }
+  };
+  const bulkStatus = async (status) => {
+    const targets = view.filter((u) => selected.has(u.id) && u.role !== 'super_admin');
+    let n = 0; for (const u of targets) { if (await setStatus(u, status)) n++; }
+    setSelected(new Set()); flash(`${n} account${n === 1 ? '' : 's'} ${status === 'active' ? 'enabled' : 'disabled'}.`);
+  };
+  const resetPw = async (u) => {
+    const pw = prompt(`Set a temporary password for ${u.name} (min 8 chars):`);
+    if (!pw) return;
+    try { await apiPost(`/users/${u.id}/reset-password`, { password: pw }); flash('Temporary password set.'); }
+    catch (e) { flash(e.message, true); }
+  };
+
+  const hasSel = selected.size > 0;
+  const commandBar = (
+    <>
+      <button className="cmd" onClick={() => setCreateOpen(true)}><span className="ci">{I.addUser}</span> Add a user</button>
+      <button className="cmd" onClick={() => { setLoading(true); load(); }}><span className="ci">{I.refresh}</span> Refresh</button>
+      {hasSel && (<>
+        <span className="cmd-divider" />
+        <button className="cmd" onClick={() => bulkStatus('disabled')}><span className="ci">{I.block}</span> Disable ({selected.size})</button>
+        <button className="cmd" onClick={() => bulkStatus('active')}><span className="ci">{I.check}</span> Enable</button>
+      </>)}
+      <div className="cmd-search">{I.search}
+        <input placeholder="Search active users list" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+    </>
+  );
+
+  return (
+    <AppLayout breadcrumb={[{ label: 'Home', to: '/' }, { label: 'Users' }]} title="Active users" commandBar={commandBar}>
+      <div className="filterbar">
+        <span className="filter-label">Filter set:</span>
+        <div className="filter-pills">
+          {ROLE_FILTERS.map((f) => (
+            <button key={f.key} className={`pill ${roleFilter === f.key ? 'active' : ''}`} onClick={() => setRoleFilter(f.key)}>{f.label}</button>
+          ))}
+        </div>
+        <span className="count">{view.length} account{view.length === 1 ? '' : 's'}</span>
+      </div>
+
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="col-check"><input className="cbx" type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Select all" /></th>
+              <th className="th-sort" onClick={() => setSortDir((d) => -d)}>Display name <span className="sort-caret">{sortDir === 1 ? '▲' : '▼'}</span></th>
+              <th>Username</th><th>Role</th><th>Suites granted</th><th>Status</th><th className="col-check"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={7} className="td-empty">Loading…</td></tr>}
+            {!loading && view.length === 0 && <tr><td colSpan={7} className="td-empty">No accounts found.</td></tr>}
+            {!loading && view.map((u) => (
+              <tr key={u.id}>
+                <td className="col-check">
+                  {u.role !== 'super_admin' &&
+                    <input className="cbx" type="checkbox" checked={selected.has(u.id)} onChange={() => toggleOne(u.id)} aria-label={`Select ${u.name}`} />}
+                </td>
+                <td>
+                  <div className="cell-user">
+                    <span className="avatar sm">{u.name.split(' ').slice(0,2).map((w)=>w[0]).join('').toUpperCase()}</span>
+                    <div className="cu-name">{u.name}</div>
+                  </div>
+                </td>
+                <td className="cu-mail">{u.email}</td>
+                <td><span className={`role-pill role-${u.role}`}>{ROLE_LABEL[u.role]}</span></td>
+                <td>
+                  {u.role === 'super_admin' ? <span className="all-suites">All suites</span>
+                    : u.suites.length === 0 ? <span className="muted">None</span>
+                    : <div className="chips">{u.suites.map((s) => (
+                        <span key={s.key} className="chip"><span className="chip-dot" style={{ background: SUITE_META[s.key]?.tint }} />{catalog.find((c)=>c.key===s.key)?.name || s.key}</span>))}
+                      </div>}
+                </td>
+                <td><span className={`status-dot ${u.status}`} />{u.status === 'active' ? 'Active' : 'Disabled'}</td>
+                <td className="col-check" style={{ position: 'relative' }}>
+                  <button className="kebab" onClick={() => setRowMenu(rowMenu === u.id ? null : u.id)} aria-label="Row actions">{I.kebab}</button>
+                  {rowMenu === u.id && (
+                    <RowMenu u={u} onClose={() => setRowMenu(null)}
+                      onManage={() => { setRowMenu(null); setManage(u); }}
+                      onReset={() => { setRowMenu(null); resetPw(u); }}
+                      onStatus={() => { setRowMenu(null); setStatus(u, u.status === 'active' ? 'disabled' : 'active').then((ok) => ok && flash(`${u.name} ${u.status === 'active' ? 'disabled' : 'enabled'}.`)); }} />
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {createOpen && <CreateUserModal catalog={catalog} onClose={() => setCreateOpen(false)}
+        onCreated={(u) => { setUsers((l) => [u, ...l]); setCreateOpen(false); flash(`${u.name} created.`); }} onError={(m) => flash(m, true)} />}
+      {manage && <ManageAccessModal user={manage} catalog={catalog} onClose={() => setManage(null)}
+        onSaved={(u) => { replace(u); setManage(null); flash('Access updated.'); }} onError={(m) => flash(m, true)} />}
+      {toast && <div className={`toast ${toast.isErr ? 'error' : ''}`}>{toast.msg}</div>}
+    </AppLayout>
+  );
+}
+
+function RowMenu({ u, onClose, onManage, onReset, onStatus }) {
+  const ref = useRef(null);
+  useClickOutside(ref, onClose);
+  return (
+    <div className="rowmenu" ref={ref}>
+      {u.role !== 'super_admin' && <button onClick={onManage}>Manage access</button>}
+      <button onClick={onReset}>Reset password</button>
+      {u.role !== 'super_admin' && <button className={u.status === 'active' ? 'danger' : ''} onClick={onStatus}>{u.status === 'active' ? 'Disable account' : 'Enable account'}</button>}
+    </div>
+  );
+}
+
+function CreateUserModal({ catalog, onClose, onCreated, onError }) {
+  const [f, setF] = useState(EMPTY); const [busy, setBusy] = useState(false);
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const isAdmin = f.role === 'super_admin';
+  const submit = async (e) => {
+    e.preventDefault(); setBusy(true);
+    try { const d = await apiPost('/users', { ...f, suites: isAdmin ? [] : f.suites }); onCreated(d.user); }
+    catch (e2) { onError(e2.message); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title="Add a user" onClose={onClose} wide>
+      <form onSubmit={submit}>
+        <div className="form-grid">
+          <div className="field"><label>Full name</label><input className="input" value={f.name} onChange={(e) => set('name', e.target.value)} required autoFocus /></div>
+          <div className="field"><label>Work email</label><input className="input" type="email" value={f.email} onChange={(e) => set('email', e.target.value)} required /></div>
+          <div className="field"><label>Job title</label><input className="input" value={f.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} /></div>
+          <div className="field"><label>Department</label><input className="input" value={f.department} onChange={(e) => set('department', e.target.value)} /></div>
+          <div className="field"><label>Temporary password</label><input className="input" value={f.password} onChange={(e) => set('password', e.target.value)} required placeholder="Min 8 characters" /></div>
+          <div className="field"><label>System role</label>
+            <select className="select" value={f.role} onChange={(e) => set('role', e.target.value)}>
+              <option value="staff">Staff</option><option value="manager">Manager</option><option value="super_admin">System Admin (all suites)</option>
+            </select></div>
+        </div>
+        <div className="field">
+          <label>Suite access {isAdmin && <span className="muted">— System Admins get every suite automatically</span>}</label>
+          <SuiteGrantPicker catalog={catalog} value={f.suites} onChange={(v) => set('suites', v)} disabled={isAdmin} />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={busy}>{busy ? <span className="spinner" /> : 'Create account'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ManageAccessModal({ user, catalog, onClose, onSaved, onError }) {
+  const [grants, setGrants] = useState(user.suites); const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try { const d = await apiPut(`/users/${user.id}/suites`, { suites: grants }); onSaved(d.user); }
+    catch (e) { onError(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title={`Suite access · ${user.name}`} onClose={onClose} wide>
+      <p className="muted" style={{ marginTop: 0 }}>Tick the suites {user.name.split(' ')[0]} may open, and set their role inside each.</p>
+      <SuiteGrantPicker catalog={catalog} value={grants} onChange={setGrants} />
+      <div className="modal-actions">
+        <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? <span className="spinner" /> : 'Save access'}</button>
+      </div>
+    </Modal>
+  );
+}
