@@ -62,3 +62,29 @@ $$;
 grant execute on function public.is_super_admin()        to authenticated;
 grant execute on function public.mark_password_changed() to authenticated;
 grant execute on function public.touch_last_login()      to authenticated;
+
+-- ---- Auto-create a profile on first sign-in (Microsoft SSO / admin / email) --
+-- Azure SSO -> active staff with no suites; email self-signup -> disabled;
+-- admin-created -> trigger inserts then /api/admin upserts role+suites+active.
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  prov text := coalesce(new.raw_app_meta_data->>'provider', 'email');
+begin
+  insert into public.profiles (id, email, name, role, suites, status, must_change_password)
+  values (
+    new.id, new.email,
+    coalesce(new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    'staff', '[]'::jsonb,
+    case when prov = 'email' then 'disabled' else 'active' end,
+    false
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();

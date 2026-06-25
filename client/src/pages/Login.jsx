@@ -1,16 +1,33 @@
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { DEMO } from '../api/client.js';
 import logo from '../assets/otg-mark.png';
 
+// Microsoft 4-square logo (SVG, no emoji).
+const MicrosoftLogo = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="#f25022" d="M2 2h9.5v9.5H2z" />
+    <path fill="#7fba00" d="M12.5 2H22v9.5h-9.5z" />
+    <path fill="#00a4ef" d="M2 12.5h9.5V22H2z" />
+    <path fill="#ffb900" d="M12.5 12.5H22V22h-9.5z" />
+  </svg>
+);
+
 export default function Login() {
-  const { user, login, booting } = useAuth();
+  const { user, login, loginWithMicrosoft, booting } = useAuth();
   const nav = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [step, setStep] = useState('email'); // microsoft-style 2-step
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const microsoft = async () => {
+    setErr('');
+    try { await loginWithMicrosoft(); } // redirects away to Microsoft
+    catch (e) { setErr(e.message || 'Could not start Microsoft sign-in.'); }
+  };
 
   if (!booting && user) return <Navigate to="/" replace />;
 
@@ -56,10 +73,19 @@ export default function Login() {
               />
             </div>
             {err && <div className="error-text">{err}</div>}
-            <p className="login-note">No account? Your System Administrator provisions access.</p>
             <div className="login-actions">
               <button className="btn btn-primary" type="submit">Next</button>
             </div>
+
+            {!DEMO && (
+              <>
+                <div className="login-divider"><span>or</span></div>
+                <button type="button" className="btn btn-ms" onClick={microsoft}>
+                  <MicrosoftLogo /> Sign in with Microsoft
+                </button>
+                <p className="login-note">Staff: use your Origin Tech Group Microsoft account. Suite access is granted by your System Administrator.</p>
+              </>
+            )}
           </form>
         )}
 

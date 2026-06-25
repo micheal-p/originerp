@@ -43,7 +43,8 @@ export default async function handler(req, res) {
         role, suites: role === 'super_admin' ? [] : (Array.isArray(suites) ? suites : []),
         status: 'active', must_change_password: true,
       };
-      const { data: profile, error: pErr } = await admin.from('profiles').insert(row).select().single();
+      // Upsert: a DB trigger may have already created a default profile on user insert.
+      const { data: profile, error: pErr } = await admin.from('profiles').upsert(row, { onConflict: 'id' }).select().single();
       if (pErr) { await admin.auth.admin.deleteUser(created.user.id); return json(res, 400, { message: pErr.message }); }
       return json(res, 201, profile);
     }
