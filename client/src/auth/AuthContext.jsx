@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { api, apiPost, setAccessToken, onAuthExpired, bootSession } from '../api/client.js';
+import { api, apiPost, setAccessToken, onAuthExpired, bootSession, DEMO } from '../api/client.js';
 
 const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
@@ -8,18 +8,36 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [booting, setBooting] = useState(true);
 
-  // On first load, try to restore a session (demo: localStorage; real: refresh cookie).
+  // On first load, restore a session. In real (Supabase) mode we also subscribe to
+  // auth changes so the Microsoft (Azure) OAuth redirect signs the user in when it lands.
   useEffect(() => {
+    let unsub = () => {};
     (async () => {
       try {
         const data = await bootSession();
         if (data) { setAccessToken(data.accessToken); setUser(data.user); }
-      } catch {
-        /* no session */
-      } finally {
-        setBooting(false);
-      }
+      } catch { /* no session */ }
+      finally { setBooting(false); }
     })();
+
+    if (!DEMO) {
+      import('../lib/supabaseClient.js').then(({ supabase }) => {
+        const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_OUT' || !session) { setAccessToken(null); setUser(null); return; }
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+            try {
+              const { user: profile } = await api('/me');           // trigger created the profile on first login
+              if (profile.status !== 'active') { await supabase.auth.signOut(); setUser(null); return; }
+              setAccessToken(session.access_token);
+              setUser(profile);
+            } catch { /* no profile yet */ }
+            finally { setBooting(false); }
+          }
+        });
+        unsub = () => sub.subscription.unsubscribe();
+      });
+    }
+    return () => unsub();
   }, []);
 
   // Forced sign-out when a refresh fails mid-session.
@@ -30,6 +48,16 @@ export function AuthProvider({ children }) {
     setAccessToken(data.accessToken);
     setUser(data.user);
     return data.user;
+  }, []);
+
+  // Microsoft / Azure Entra ID SSO — redirects to Microsoft, returns to the app.
+  const loginWithMicrosoft = useCallback(async () => {
+    const { supabase } = await import('../lib/supabaseClient.js');
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'azure',
+      options: { scopes: 'openid email profile', redirectTo: window.location.origin },
+    });
+    if (error) throw error;
   }, []);
 
   const logout = useCallback(async () => {
@@ -45,7 +73,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthCtx.Provider value={{ user, setUser, booting, login, logout, refreshUser }}>
+    <AuthCtx.Provider value={{ user, setUser, booting, login, loginWithMicrosoft, logout, refreshUser }}>
       {children}
     </AuthCtx.Provider>
   );

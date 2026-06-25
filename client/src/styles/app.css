@@ -216,6 +216,10 @@
 .login-back { background: transparent; border: 0; color: var(--text-2); cursor: pointer; font-size: 14px; padding: 0; margin-bottom: 14px; }
 .login-back:hover { color: var(--brand); }
 .login-footer { color: rgba(255,255,255,.65); font-size: 12px; margin-top: 22px; text-align: center; }
+.login-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--text-3); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.login-divider::before, .login-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.btn-ms { width: 100%; background: #fff; color: var(--text); border: 1px solid var(--line-strong); height: 41px; font-weight: 600; }
+.btn-ms:hover { background: var(--surface-2); }
 .full-center { min-height: 100vh; display: grid; place-items: center; }
 .boot-spinner { width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: spin .8s linear infinite; }
 

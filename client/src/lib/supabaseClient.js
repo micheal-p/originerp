@@ -7,7 +7,8 @@ const url = import.meta.env.VITE_SUPABASE_URL || 'https://dxekronjsvnwmnbanlqh.s
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_vLEdOSIwgkVRPgh1ZM9G0A_SHSZ3qc5';
 
 export const supabase = createClient(url, anonKey, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+  // detectSessionInUrl: true so the Microsoft (Azure) OAuth redirect completes itself.
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
 });
 
 export const SUPABASE_CONFIGURED = Boolean(url && anonKey);
