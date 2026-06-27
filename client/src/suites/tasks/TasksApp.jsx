@@ -155,7 +155,7 @@ function ReportModal({ taskId, onClose, onSaved, onError }) {
 }
 
 /* ---- TaskReports (inline panel shown when task row expanded) -------------- */
-function TaskReports({ task, isAssignee, flash }) {
+function TaskReports({ task, canMutate, flash }) {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal,   setModal]   = useState(false);
@@ -176,7 +176,7 @@ function TaskReports({ task, isAssignee, flash }) {
     } catch (e) { flash(e.message, true); }
   };
 
-  const canReport = isAssignee || true; // assignee + supervisor can both submit
+  const canReport = canMutate;
 
   if (loading) return <div style={{ padding:'10px 0' }}><div className="boot-spinner" style={{ width:18, height:18 }} /></div>;
 
@@ -270,7 +270,7 @@ function TaskRow({ task, isSupervisor, myId, locked, onEdit, onDelete, onStatusC
       {expanded && (
         <tr>
           <td colSpan={6} style={{ padding:'0 16px 16px', background:'var(--surface)' }}>
-            <TaskReports task={task} isAssignee={isAssignee} flash={flash} />
+            <TaskReports task={task} canMutate={canMutate} flash={flash} />
           </td>
         </tr>
       )}
