@@ -195,15 +195,23 @@
 .cl-contact-card p { color: var(--text-soft); font-size: 15px; max-width: 46ch; margin: 14px auto 30px; }
 .cl-contact-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 
-.cl-footer { padding: 44px 0; border-top: 1px solid var(--line); }
-.cl-footer .cl-wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-.cl-footer-brand { display: flex; align-items: center; gap: 8px; }
-.cl-footer-brand span { font-family: Georgia, serif; font-size: 15px; }
+.cl-footer { padding: 64px 0 28px; border-top: 1px solid var(--line); background: var(--bg-tint); }
+.cl-footer-top { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 48px; padding-bottom: 40px; }
+@media (max-width: 720px) { .cl-footer-top { grid-template-columns: 1fr; gap: 32px; } }
+.cl-footer-col { display: flex; flex-direction: column; gap: 12px; }
+.cl-footer-col a { font-size: 13.5px; color: var(--text-soft); text-decoration: none; width: fit-content; }
+.cl-footer-col a:hover { color: var(--accent-ink); }
+.cl-footer-h { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 2px; }
+.cl-footer-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.cl-footer-brand span { font-family: Georgia, serif; font-size: 17px; }
 .cl-footer-brand em { font-style: italic; color: var(--accent); }
+.cl-footer-about p { font-size: 13.5px; line-height: 1.65; color: var(--text-soft); max-width: 38ch; margin: 0; }
+.cl-footer-contact { display: flex; gap: 16px; margin-top: 4px; }
+.cl-footer-contact a { font-size: 13px; font-weight: 600; color: var(--accent-ink); text-decoration: none; }
+.cl-footer-contact a:hover { text-decoration: underline; }
+.cl-footer-bottom { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding-top: 24px; border-top: 1px solid var(--line); }
 .cl-fnote { font-size: 12.5px; color: var(--text-faint); }
-.cl-footer-links { display: flex; gap: 16px; }
-.cl-footer-links a { font-size: 13px; color: var(--text-soft); text-decoration: none; }
-.cl-footer-links a:hover { color: var(--text); }
+.cl-footer-loc { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-faint); }
 
 .cl a:focus-visible, .cl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 

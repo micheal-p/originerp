@@ -357,14 +357,36 @@ export default function Landing() {
 
       <footer className="cl-footer">
         <div className="cl-wrap">
-          <div className="cl-footer-brand">
-            <Mark size={18} />
-            <span>Collar<em>One</em></span>
+          <div className="cl-footer-top">
+            <div className="cl-footer-col cl-footer-about">
+              <div className="cl-footer-brand">
+                <Mark size={20} />
+                <span>Collar<em>One</em></span>
+              </div>
+              <p>The business platform for Nigerian companies — team, leave, tasks and front desk today, customers and your website joining the same space. Built and supported from Lagos.</p>
+              <div className="cl-footer-contact">
+                <a href="https://wa.me/2348148128551" target="_blank" rel="noreferrer">WhatsApp</a>
+                <a href="mailto:hello@collarone.app">hello@collarone.app</a>
+              </div>
+            </div>
+            <div className="cl-footer-col">
+              <div className="cl-footer-h">Platform</div>
+              <a href="#platform">What's inside</a>
+              <a href="#pricing">Pricing</a>
+              <a href="#faq">FAQ</a>
+              <Link to="/login">Sign in</Link>
+            </div>
+            <div className="cl-footer-col">
+              <div className="cl-footer-h">Company</div>
+              <a href="#about">About</a>
+              <a href="/careers">Careers</a>
+              <a href="#contact">Contact us</a>
+            </div>
           </div>
-          <div className="cl-footer-links">
-            <Link to="/login">Sign in</Link>
+          <div className="cl-footer-bottom">
+            <div className="cl-fnote">© 2026 Collarone. Made for Nigerian business.</div>
+            <div className="cl-footer-loc">{I.pin}Lagos, Nigeria</div>
           </div>
-          <div className="cl-fnote">© 2026 Collarone. Made for Nigerian business.</div>
         </div>
       </footer>
     </div>
