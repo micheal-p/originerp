@@ -54,6 +54,14 @@ const toPublicOrg = (o) => ({
   status: o.status, suitesEnabled: o.suites_enabled, websiteType: o.website_type,
 });
 
+// RLS on platform_admins is `using (is_platform_admin())` — a non-admin's
+// query just comes back empty (not an error), so this is safe to call for
+// every user, not just real platform admins.
+async function amIPlatformAdmin() {
+  const { data } = await supabase.from('platform_admins').select('user_id').limit(1);
+  return Boolean(data && data.length);
+}
+
 function tiles(profile, org) {
   return SUITES.map((s) => {
     const grant = (profile.suites || []).find((g) => g.key === s.key);
@@ -93,7 +101,8 @@ export async function supabaseApi(path, opts = {}) {
     const org = await myOrg(profile.org_id);
     if (org.status !== 'active') { await supabase.auth.signOut(); fail(403, "Your organization's account is pending activation. We'll email you once your payment is confirmed."); }
     await supabase.rpc('touch_last_login');
-    return { accessToken: data.session.access_token, user: { ...toPublic(profile), org: toPublicOrg(org) } };
+    const isPlatformAdmin = await amIPlatformAdmin();
+    return { accessToken: data.session.access_token, user: { ...toPublic(profile), org: toPublicOrg(org), isPlatformAdmin } };
   }
   if (head === 'POST /auth' && seg[1] === 'refresh') {
     const { data: { session } } = await supabase.auth.getSession();
@@ -102,7 +111,8 @@ export async function supabaseApi(path, opts = {}) {
     if (profile.status !== 'active') { await supabase.auth.signOut(); fail(401, 'Account is inactive.'); }
     const org = await myOrg(profile.org_id);
     if (org.status !== 'active') { await supabase.auth.signOut(); fail(401, "Organization is pending activation."); }
-    return { accessToken: session.access_token, user: { ...toPublic(profile), org: toPublicOrg(org) } };
+    const isPlatformAdmin = await amIPlatformAdmin();
+    return { accessToken: session.access_token, user: { ...toPublic(profile), org: toPublicOrg(org), isPlatformAdmin } };
   }
   if (head === 'POST /auth' && seg[1] === 'logout') { await supabase.auth.signOut(); return { ok: true }; }
   if (head === 'POST /auth' && seg[1] === 'change-password') {
@@ -117,7 +127,8 @@ export async function supabaseApi(path, opts = {}) {
   if (head === 'GET /me' && !seg[1]) {
     const profile = await myProfile();
     const org = await myOrg(profile.org_id);
-    return { user: { ...toPublic(profile), org: toPublicOrg(org) } };
+    const isPlatformAdmin = await amIPlatformAdmin();
+    return { user: { ...toPublic(profile), org: toPublicOrg(org), isPlatformAdmin } };
   }
   if (head === 'PATCH /me' && !seg[1]) {
     const { phone, whatsapp, avatarUrl } = body;
@@ -130,7 +141,8 @@ export async function supabaseApi(path, opts = {}) {
     if (error) fail(500, error.message);
     const profile2 = await myProfile();
     const org2 = await myOrg(profile2.org_id);
-    return { user: { ...toPublic(profile2), org: toPublicOrg(org2) } };
+    const isPlatformAdmin2 = await amIPlatformAdmin();
+    return { user: { ...toPublic(profile2), org: toPublicOrg(org2), isPlatformAdmin: isPlatformAdmin2 } };
   }
   if (head === 'GET /me' && seg[1] === 'suites') {
     const p = await myProfile();
@@ -152,6 +164,29 @@ export async function supabaseApi(path, opts = {}) {
   }
   if (head === 'POST /billing' && seg[1] === 'purchase-credits') {
     return callAdmin('purchase-credits', { credits: body.credits });
+  }
+
+  // ---- platform admin (cross-org — RLS allows this only for is_platform_admin()) ----
+  if (head === 'GET /platform' && seg[1] === 'organizations') {
+    const { data, error } = await supabase.from('organizations').select('*').order('created_at', { ascending: false });
+    if (error) fail(error.code === '42501' ? 403 : 400, error.message);
+    return { organizations: data };
+  }
+  if (head === 'GET /platform' && seg[1] === 'profiles') {
+    const { data, error } = await supabase.from('profiles').select('id, org_id, name, email, role, created_at, last_login_at').order('created_at', { ascending: false });
+    if (error) fail(error.code === '42501' ? 403 : 400, error.message);
+    return { profiles: data };
+  }
+  if (head === 'GET /platform' && seg[1] === 'transactions') {
+    const { data, error } = await supabase.from('billing_transactions').select('*').order('created_at', { ascending: false });
+    if (error) fail(error.code === '42501' ? 403 : 400, error.message);
+    return { transactions: data };
+  }
+  if (head === 'POST /platform' && seg[1] === 'confirm-payment') {
+    return callAdmin('confirm-org-payment', { transactionId: body.transactionId });
+  }
+  if (head === 'POST /platform' && seg[1] === 'delete-org') {
+    return callAdmin('delete-org', { orgId: body.orgId });
   }
 
   // ---- careers: public job board (unauthenticated, anon role) ----

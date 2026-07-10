@@ -229,6 +229,14 @@ export default function AppLayout({ breadcrumb = [], title, commandBar, children
               <RailItem to="/admin/website" icon="globe" label="Website" onClick={() => setDrawer(false)} />
             </>
           )}
+
+          {user?.isPlatformAdmin && (
+            <>
+              <div className="rail-divider" />
+              <div className="rail-group">Platform</div>
+              <RailItem to="/platform-admin" icon="shield" label="Platform Admin" onClick={() => setDrawer(false)} />
+            </>
+          )}
         </nav>
 
         <main className="content">

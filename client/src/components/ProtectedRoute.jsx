@@ -1,8 +1,8 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 
-/** Gate any authenticated area. Optionally require the System-Admin role. */
-export default function ProtectedRoute({ children, requireAdmin = false }) {
+/** Gate any authenticated area. Optionally require the System-Admin role or platform-admin status. */
+export default function ProtectedRoute({ children, requireAdmin = false, requirePlatformAdmin = false }) {
   const { user, booting } = useAuth();
   const loc = useLocation();
 
@@ -17,6 +17,7 @@ export default function ProtectedRoute({ children, requireAdmin = false }) {
   if (user.mustChangePassword && loc.pathname !== '/change-password')
     return <Navigate to="/change-password" replace />;
   if (requireAdmin && user.role !== 'super_admin') return <Navigate to="/" replace />;
+  if (requirePlatformAdmin && !user.isPlatformAdmin) return <Navigate to="/" replace />;
 
   return children;
 }

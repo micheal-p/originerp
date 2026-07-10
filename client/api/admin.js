@@ -105,6 +105,25 @@ export default async function handler(req, res) {
       return json(res, 200, { ok: true });
     }
 
+    if (action === 'delete-org') {
+      const { data: isPlatformAdmin } = await admin.from('platform_admins').select('user_id').eq('user_id', user.id).maybeSingle();
+      if (!isPlatformAdmin) return json(res, 403, { message: 'Platform admin access required.' });
+
+      const { orgId } = body;
+      if (!orgId) return json(res, 400, { message: 'orgId is required.' });
+      if (orgId === OTG_ORG_ID) return json(res, 400, { message: 'Tenant #1 cannot be deleted.' });
+
+      const { data: members } = await admin.from('profiles').select('id').eq('org_id', orgId);
+      for (const m of members || []) {
+        await admin.auth.admin.deleteUser(m.id); // cascades to delete the profile row
+      }
+      await admin.from('org_credit_ledger').delete().eq('org_id', orgId);
+      await admin.from('billing_transactions').delete().eq('org_id', orgId);
+      const { error: delErr } = await admin.from('organizations').delete().eq('id', orgId);
+      if (delErr) return json(res, 400, { message: delErr.message });
+      return json(res, 200, { ok: true });
+    }
+
     if (action === 'reset-password') {
       const { id, password } = body;
       if (!password || password.length < 8) return json(res, 400, { message: 'Temporary password must be at least 8 characters.' });

@@ -10,6 +10,7 @@ import AdminUsers from './pages/admin/Users.jsx';
 import AdminDepartments from './pages/admin/Departments.jsx';
 import AdminBilling from './pages/admin/Billing.jsx';
 import AdminWebsite from './pages/admin/Website.jsx';
+import PlatformAdmin from './pages/PlatformAdmin.jsx';
 import Profile from './pages/Profile.jsx';
 import CareersIndex from './pages/careers/CareersIndex.jsx';
 import CareersApply from './pages/careers/CareersApply.jsx';
@@ -89,6 +90,15 @@ export default function App() {
         element={
           <ProtectedRoute requireAdmin>
             <AdminWebsite />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/platform-admin"
+        element={
+          <ProtectedRoute requirePlatformAdmin>
+            <PlatformAdmin />
           </ProtectedRoute>
         }
       />
