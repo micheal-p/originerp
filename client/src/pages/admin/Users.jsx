@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { apiGet, apiPost, apiPatch, apiPut } from '../../api/client.js';
-import { SUITE_META, SUITE_ROLES } from '../../config/suites.js';
+import { SUITE_META, SUITE_ROLES, MULTI_TENANT_SAFE_SUITES } from '../../config/suites.js';
 import { OTG_ORG_ID } from '../../config/org.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import AppLayout from '../../components/AppLayout.jsx';
@@ -94,6 +94,10 @@ export default function AdminUsers() {
   const [searchParams] = useSearchParams();
   const [users, setUsers] = useState([]);
   const [catalog, setCatalog] = useState([]);
+  // Suites not yet safe for multi-tenant use are hidden from non-OTG grant
+  // pickers — showing a checkbox the server will silently strip is worse
+  // than not offering it.
+  const grantableCatalog = isOtgOrg ? catalog : catalog.filter((s) => MULTI_TENANT_SAFE_SUITES.includes(s.key));
   const [departments, setDepartments] = useState([]);
   const [q, setQ] = useState(searchParams.get('q') || '');
   const [roleFilter, setRoleFilter] = useState('');
@@ -242,9 +246,9 @@ export default function AdminUsers() {
         </table>
       </div>
 
-      {createOpen && <CreateUserModal catalog={catalog} departments={departments} isOtgOrg={isOtgOrg} onClose={() => setCreateOpen(false)}
+      {createOpen && <CreateUserModal catalog={grantableCatalog} departments={departments} isOtgOrg={isOtgOrg} onClose={() => setCreateOpen(false)}
         onCreated={(u) => { setUsers((l) => [u, ...l]); setCreateOpen(false); flash(`${u.name} created.`); }} onError={(m) => flash(m, true)} />}
-      {manage && <EditUserModal user={manage} catalog={catalog} departments={departments} isOtgOrg={isOtgOrg} onClose={() => setManage(null)}
+      {manage && <EditUserModal user={manage} catalog={grantableCatalog} departments={departments} isOtgOrg={isOtgOrg} onClose={() => setManage(null)}
         onSaved={(u) => { replace(u); setManage(null); flash('Access updated.'); }} onError={(m) => flash(m, true)} />}
       {viewUser && <ProfileModal user={viewUser} catalog={catalog} departments={departments} onClose={() => setViewUser(null)}
         onManage={() => { setViewUser(null); setManage(viewUser); }} />}

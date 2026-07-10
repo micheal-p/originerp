@@ -29,6 +29,13 @@ export default async function handler(req, res) {
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
   const { action } = body;
 
+  const requirePlatformAdmin = async () => {
+    const { data } = await admin.from('platform_admins').select('user_id').eq('user_id', user.id).maybeSingle();
+    if (!data) { const e = new Error('Platform admin access required.'); e.status = 403; throw e; }
+  };
+  const logAudit = (auditAction, targetOrgId, details = {}) =>
+    admin.from('platform_admin_audit_log').insert({ actor_id: user.id, action: auditAction, target_org_id: targetOrgId, details });
+
   try {
     if (action === 'create') {
       const { name, email, password, role = 'staff', jobTitle = '', department = '', departmentId = null, suites = [] } = body;
@@ -82,8 +89,7 @@ export default async function handler(req, res) {
     }
 
     if (action === 'confirm-org-payment') {
-      const { data: isPlatformAdmin } = await admin.from('platform_admins').select('user_id').eq('user_id', user.id).maybeSingle();
-      if (!isPlatformAdmin) return json(res, 403, { message: 'Platform admin access required.' });
+      await requirePlatformAdmin();
 
       const { transactionId } = body;
       const { data: tx, error: txErr } = await admin.from('billing_transactions').select('*').eq('id', transactionId).single();
@@ -102,17 +108,18 @@ export default async function handler(req, res) {
           org_id: tx.org_id, delta: tx.credits_granted, reason: 'purchase', related_transaction_id: tx.id, created_by: user.id,
         });
       }
+      await logAudit('confirm_payment', tx.org_id, { transactionId, type: tx.type, amountKobo: tx.amount_kobo });
       return json(res, 200, { ok: true });
     }
 
     if (action === 'delete-org') {
-      const { data: isPlatformAdmin } = await admin.from('platform_admins').select('user_id').eq('user_id', user.id).maybeSingle();
-      if (!isPlatformAdmin) return json(res, 403, { message: 'Platform admin access required.' });
+      await requirePlatformAdmin();
 
       const { orgId } = body;
       if (!orgId) return json(res, 400, { message: 'orgId is required.' });
       if (orgId === OTG_ORG_ID) return json(res, 400, { message: 'Tenant #1 cannot be deleted.' });
 
+      const { data: org } = await admin.from('organizations').select('name, slug').eq('id', orgId).maybeSingle();
       const { data: members } = await admin.from('profiles').select('id').eq('org_id', orgId);
       for (const m of members || []) {
         await admin.auth.admin.deleteUser(m.id); // cascades to delete the profile row
@@ -121,7 +128,27 @@ export default async function handler(req, res) {
       await admin.from('billing_transactions').delete().eq('org_id', orgId);
       const { error: delErr } = await admin.from('organizations').delete().eq('id', orgId);
       if (delErr) return json(res, 400, { message: delErr.message });
+      await logAudit('delete_org', null, { orgId, name: org?.name, slug: org?.slug, memberCount: members?.length || 0 });
       return json(res, 200, { ok: true });
+    }
+
+    if (action === 'impersonate') {
+      await requirePlatformAdmin();
+
+      const { orgId } = body;
+      if (!orgId) return json(res, 400, { message: 'orgId is required.' });
+      const { data: target } = await admin.from('profiles').select('id, email, name')
+        .eq('org_id', orgId).eq('role', 'super_admin').limit(1).maybeSingle();
+      if (!target) return json(res, 404, { message: 'This organization has no admin account to impersonate.' });
+
+      const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
+        type: 'magiclink', email: target.email,
+        options: { redirectTo: `${req.headers.origin || 'https://collarone.vercel.app'}/` },
+      });
+      if (linkErr) return json(res, 400, { message: linkErr.message });
+
+      await logAudit('impersonate', orgId, { targetProfileId: target.id, targetEmail: target.email });
+      return json(res, 200, { actionLink: link.properties.action_link, name: target.name, email: target.email });
     }
 
     if (action === 'reset-password') {
@@ -146,6 +173,6 @@ export default async function handler(req, res) {
 
     return json(res, 400, { message: `Unknown action: ${action}` });
   } catch (e) {
-    return json(res, 500, { message: e.message || 'Admin operation failed.' });
+    return json(res, e.status || 500, { message: e.message || 'Admin operation failed.' });
   }
 }

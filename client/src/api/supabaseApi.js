@@ -6,7 +6,7 @@
 // Vercel /api/admin function which holds the service key.
 // ---------------------------------------------------------------------------
 import { supabase } from '../lib/supabaseClient.js';
-import { SUITES } from '../config/suites.js';
+import { SUITES, MULTI_TENANT_SAFE_SUITES } from '../config/suites.js';
 
 const fail = (status, message) => { const e = new Error(message); e.status = status; e.code = 'supabase'; throw e; };
 
@@ -62,10 +62,27 @@ async function amIPlatformAdmin() {
   return Boolean(data && data.length);
 }
 
+// HR-suite tables carry their own org_id (not derivable server-side on
+// insert), so every write into them needs the caller's org_id attached.
+async function myOrgId() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) fail(401, 'Authentication required.');
+  const { data, error } = await supabase.from('profiles').select('org_id').eq('id', user.id).single();
+  if (error || !data) fail(401, 'No profile found for this account.');
+  return data.org_id;
+}
+
+// The real gate is server-side: enforce_phase1_suite_scope() (organizations.sql
+// / hr_multitenancy.sql) strips any suite key not yet safe for multi-tenant use
+// from a non-OTG org's `suites` array on every write. This mirrors that
+// whitelist client-side only to keep a super_admin's "all suites" view honest
+// about what's actually usable — it is not itself a security boundary.
 function tiles(profile, org) {
+  const isOtg = org?.id === '00000000-0000-0000-0000-000000000001';
   return SUITES.map((s) => {
     const grant = (profile.suites || []).find((g) => g.key === s.key);
-    const granted = (profile.role === 'super_admin' || Boolean(grant)) && (org?.suitesEnabled ?? true);
+    const safeForOrg = isOtg || MULTI_TENANT_SAFE_SUITES.includes(s.key);
+    const granted = (profile.role === 'super_admin' ? safeForOrg : Boolean(grant));
     return { ...s, granted, suiteRole: profile.role === 'super_admin' ? 'manager' : grant?.role || null, openable: granted && s.status === 'live' };
   });
 }
@@ -188,6 +205,21 @@ export async function supabaseApi(path, opts = {}) {
   if (head === 'POST /platform' && seg[1] === 'delete-org') {
     return callAdmin('delete-org', { orgId: body.orgId });
   }
+  if (head === 'POST /platform' && seg[1] === 'impersonate') {
+    return callAdmin('impersonate', { orgId: body.orgId });
+  }
+  if (head === 'GET /platform' && seg[1] === 'audit-log') {
+    const { data, error } = await supabase.from('platform_admin_audit_log').select('*').order('created_at', { ascending: false }).limit(100);
+    if (error) fail(error.code === '42501' ? 403 : 400, error.message);
+    return { entries: data };
+  }
+
+  // ---- status: public health-check history (unauthenticated, anon role) ----
+  if (head === 'GET /status' && seg[1] === 'checks') {
+    const { data, error } = await supabase.from('status_checks').select('*').order('checked_at', { ascending: false }).limit(500);
+    if (error) fail(400, error.message);
+    return { checks: data };
+  }
 
   // ---- careers: public job board (unauthenticated, anon role) ----
   if (head === 'GET /careers' && seg[1] === 'postings' && seg.length === 2) {
@@ -223,7 +255,7 @@ export async function supabaseApi(path, opts = {}) {
   if (head === 'POST /departments') {
     const { name, code } = body;
     if (!name || !code) fail(400, 'Name and code are required.');
-    const { data, error } = await supabase.from('departments').insert({ name: name.trim(), code: code.trim().toUpperCase() }).select().single();
+    const { data, error } = await supabase.from('departments').insert({ name: name.trim(), code: code.trim().toUpperCase(), org_id: await myOrgId() }).select().single();
     if (error) fail(400, error.code === '23505' ? 'Department code already exists.' : error.message);
     return { department: data };
   }
@@ -533,10 +565,11 @@ export async function supabaseApi(path, opts = {}) {
     const { title, departmentId, hiringManagerId, headcount, employmentType, location, description, status, minExperienceYears, salaryMin, salaryMax } = body;
     if (!title?.trim()) fail(400, 'Title is required.');
     const { data: { user } } = await supabase.auth.getUser();
+    const orgId = await myOrgId();
     const { data, error } = await supabase.from('job_requisitions').insert({
       title: title.trim(), department_id: departmentId || null, hiring_manager_id: hiringManagerId || null,
       headcount: headcount || 1, employment_type: employmentType || 'full_time', location: location || '',
-      description: description || '', status: status || 'draft', created_by: user.id,
+      description: description || '', status: status || 'draft', created_by: user.id, org_id: orgId,
       min_experience_years: minExperienceYears || null, salary_min: salaryMin || null, salary_max: salaryMax || null,
     }).select(REQ_SELECT).single();
     if (error) fail(400, error.message);
@@ -572,13 +605,14 @@ export async function supabaseApi(path, opts = {}) {
     const { name, email, phone, source, notes, resumePath } = body;
     if (!name?.trim() || !email?.trim()) fail(400, 'Candidate name and email are required.');
     const { data: { user } } = await supabase.auth.getUser();
+    const orgId = await myOrgId();
     const { data: candidate, error: candErr } = await supabase.from('candidates').insert({
       name: name.trim(), email: email.trim(), phone: phone || '', source: source || 'other',
-      notes: notes || '', resume_path: resumePath || null, created_by: user.id,
+      notes: notes || '', resume_path: resumePath || null, created_by: user.id, org_id: orgId,
     }).select().single();
     if (candErr) fail(400, candErr.message);
     const { data, error } = await supabase.from('applications').insert({
-      requisition_id: seg[2], candidate_id: candidate.id, created_by: user.id,
+      requisition_id: seg[2], candidate_id: candidate.id, created_by: user.id, org_id: orgId,
     }).select(APP_SELECT).single();
     if (error) fail(400, error.message);
     return { application: data };
@@ -617,7 +651,7 @@ export async function supabaseApi(path, opts = {}) {
     if (!scheduledAt || !interviewerId) fail(400, 'Scheduled time and interviewer are required.');
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('interviews').insert({
-      application_id: seg[2], scheduled_at: scheduledAt, interviewer_id: interviewerId, mode: mode || 'video', created_by: user.id,
+      application_id: seg[2], scheduled_at: scheduledAt, interviewer_id: interviewerId, mode: mode || 'video', created_by: user.id, org_id: await myOrgId(),
     }).select(INTERVIEW_SELECT).single();
     if (error) fail(400, error.message);
     return { interview: data };
@@ -656,7 +690,7 @@ export async function supabaseApi(path, opts = {}) {
     if (!employeeId || !title?.trim()) fail(400, 'Employee and title are required.');
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('goals').insert({
-      employee_id: employeeId, title: title.trim(), description: description || '', target_date: targetDate || null, created_by: user.id,
+      employee_id: employeeId, title: title.trim(), description: description || '', target_date: targetDate || null, created_by: user.id, org_id: await myOrgId(),
     }).select('*, employee:profiles!employee_id(id,name)').single();
     if (error) fail(400, error.message);
     return { goal: data };
@@ -686,7 +720,7 @@ export async function supabaseApi(path, opts = {}) {
     if (!employeeId || !cycleLabel?.trim()) fail(400, 'Employee and cycle label are required.');
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('performance_reviews').insert({
-      employee_id: employeeId, reviewer_id: user.id, cycle_label: cycleLabel.trim(),
+      employee_id: employeeId, reviewer_id: user.id, cycle_label: cycleLabel.trim(), org_id: await myOrgId(),
     }).select('*, employee:profiles!employee_id(id,name), reviewer:profiles!reviewer_id(id,name)').single();
     if (error) fail(400, error.message);
     return { review: data };
@@ -718,7 +752,7 @@ export async function supabaseApi(path, opts = {}) {
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('trainings').insert({
       employee_id: employeeId, title: title.trim(), provider: provider || '', completed_date: completedDate || null,
-      certificate_expiry: certificateExpiry || null, created_by: user.id,
+      certificate_expiry: certificateExpiry || null, created_by: user.id, org_id: await myOrgId(),
     }).select('*, employee:profiles!employee_id(id,name)').single();
     if (error) fail(400, error.message);
     return { training: data };
@@ -742,7 +776,7 @@ export async function supabaseApi(path, opts = {}) {
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('employee_documents').insert({
       employee_id: employeeId, title: title.trim(), category: category || 'other', file_path: filePath,
-      expiry_date: expiryDate || null, uploaded_by: user.id,
+      expiry_date: expiryDate || null, uploaded_by: user.id, org_id: await myOrgId(),
     }).select('*, employee:profiles!employee_id(id,name)').single();
     if (error) fail(400, error.message);
     return { document: data };
@@ -763,7 +797,7 @@ export async function supabaseApi(path, opts = {}) {
     if (!employeeId || !description?.trim()) fail(400, 'Employee and description are required.');
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('disciplinary_cases').insert({
-      employee_id: employeeId, opened_by: user.id, category: category || 'other', description: description.trim(),
+      employee_id: employeeId, opened_by: user.id, category: category || 'other', description: description.trim(), org_id: await myOrgId(),
     }).select('*, employee:profiles!employee_id(id,name), openedBy:profiles!opened_by(id,name)').single();
     if (error) fail(400, error.message);
     return { case: data };
@@ -790,7 +824,7 @@ export async function supabaseApi(path, opts = {}) {
     const { letterType, purpose } = body;
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('letter_requests').insert({
-      employee_id: user.id, letter_type: letterType || 'employment_verification', purpose: purpose || '',
+      employee_id: user.id, letter_type: letterType || 'employment_verification', purpose: purpose || '', org_id: await myOrgId(),
     }).select('*, employee:profiles!employee_id(id,name,email)').single();
     if (error) fail(400, error.message);
     return { letter: data };
@@ -845,9 +879,10 @@ export async function supabaseApi(path, opts = {}) {
       .select('*').eq('phase', 'onboarding').eq('active', true).order('sort_order');
     if (tplErr) fail(400, tplErr.message);
     const start = new Date(emp.start_date + 'T00:00:00');
+    const onbOrgId = await myOrgId();
     const rows = templates.map((t) => {
       const due = new Date(start); due.setDate(due.getDate() + t.offset_days);
-      return { employee_id: employeeId, phase: 'onboarding', title: t.title, category: t.category, due_date: due.toISOString().slice(0, 10) };
+      return { employee_id: employeeId, phase: 'onboarding', title: t.title, category: t.category, due_date: due.toISOString().slice(0, 10), org_id: onbOrgId };
     });
     const { data, error } = await supabase.from('lifecycle_tasks').insert(rows).select('*, completedBy:profiles!completed_by(id,name)');
     if (error) fail(400, error.message);
@@ -874,8 +909,9 @@ export async function supabaseApi(path, opts = {}) {
     const { employeeId, reason, reasonNotes, lastWorkingDay } = body;
     if (!employeeId || !reason || !lastWorkingDay) fail(400, 'Employee, reason and last working day are required.');
     const { data: { user } } = await supabase.auth.getUser();
+    const exitOrgId = await myOrgId();
     const { data: exitRow, error } = await supabase.from('exit_records').insert({
-      employee_id: employeeId, initiated_by: user.id, reason, reason_notes: reasonNotes || '', last_working_day: lastWorkingDay,
+      employee_id: employeeId, initiated_by: user.id, reason, reason_notes: reasonNotes || '', last_working_day: lastWorkingDay, org_id: exitOrgId,
     }).select(EXIT_SELECT).single();
     if (error) fail(400, error.message);
     const { data: templates } = await supabase.from('lifecycle_task_templates')
@@ -884,7 +920,7 @@ export async function supabaseApi(path, opts = {}) {
       const lwd = new Date(lastWorkingDay + 'T00:00:00');
       const rows = templates.map((t) => {
         const due = new Date(lwd); due.setDate(due.getDate() + t.offset_days);
-        return { employee_id: employeeId, phase: 'offboarding', exit_id: exitRow.id, title: t.title, category: t.category, due_date: due.toISOString().slice(0, 10) };
+        return { employee_id: employeeId, phase: 'offboarding', exit_id: exitRow.id, title: t.title, category: t.category, due_date: due.toISOString().slice(0, 10), org_id: exitOrgId };
       });
       await supabase.from('lifecycle_tasks').insert(rows);
     }

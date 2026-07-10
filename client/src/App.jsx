@@ -17,6 +17,7 @@ import CareersApply from './pages/careers/CareersApply.jsx';
 import Terms from './pages/Terms.jsx';
 import Privacy from './pages/Privacy.jsx';
 import Signup from './pages/Signup.jsx';
+import Status from './pages/Status.jsx';
 
 // "/" is the public marketing page for a signed-out visitor, and the app
 // launcher for a signed-in one — same route, different audience.
@@ -44,6 +45,7 @@ export default function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
+      <Route path="/status" element={<Status />} />
       <Route path="/careers" element={<CareersIndex />} />
       <Route path="/careers/:id" element={<CareersApply />} />
 

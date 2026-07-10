@@ -386,6 +386,7 @@ export default function Landing() {
               <div className="cl-footer-h">Legal</div>
               <Link to="/terms">Terms of Service</Link>
               <Link to="/privacy">Privacy Policy</Link>
+              <Link to="/status">System Status</Link>
             </div>
           </div>
           <div className="cl-footer-bottom">
