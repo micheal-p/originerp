@@ -41,6 +41,15 @@ function Reveal({ children, delay = 0, className }) {
   );
 }
 
+const heroStagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.11, delayChildren: 0.05 } },
+};
+const heroItem = {
+  hidden: { opacity: 0, y: 22 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.2, 0.7, 0.3, 1] } },
+};
+
 const modules = [
   {
     name: 'People & Operations', status: 'live',
@@ -61,11 +70,11 @@ const modules = [
 
 const faqs = [
   { q: 'What is Collarone?', a: 'Collarone is a business platform for Nigerian companies — your team, leave, tasks and front desk in one place, with a customer CRM and website builder joining soon. All under one login, priced and billed in naira.' },
-  { q: 'Is Collarone only for large companies?', a: 'No. The Starter plan is free for businesses with up to 10 people and includes a website and staff directory. You upgrade only when you actually need the rest.' },
-  { q: 'How much does Collarone cost?', a: 'Starter is free for up to 10 staff. Growth is ₦350 per staff member per month. Scale is ₦1,050 per staff member per month — priced 47% below the Nigerian market rate, and your rate is locked in at sign-up. No dollar pricing, no forex markup.' },
+  { q: 'Is Collarone only for large companies?', a: 'No. Starter is ₦10,000 a month plus ₦1,000 per staff member, and it ships with the full People &amp; Operations suite — not a stripped-down trial. Small teams get the same directory, leave, tasks and visitor management as everyone else.' },
+  { q: 'How much does Collarone cost?', a: 'Starter is ₦10,000/month + ₦1,000/staff. Growth is ₦18,000/month + ₦1,500/staff. Scale is ₦30,000/month + ₦2,000/staff. Every plan bundles whole suites rather than splitting features across tiers, and both your base fee and per-seat rate are locked in at sign-up. No dollar pricing, no forex markup.' },
   { q: 'Does Collarone include a website builder?', a: 'Yes, on every plan including Starter. It’s the same engine behind our own public careers pages — about, services and contact pages live in minutes, with your own domain when you’re ready.' },
   { q: 'Is there a CRM for managing customers?', a: 'A customer CRM is coming soon on the Growth plan and above — contacts, companies and deals in naira, with WhatsApp conversations logged as real customer activity.' },
-  { q: 'Can I manage staff leave and recruiting on Collarone?', a: 'Yes — leave management, task tracking, visitor management, recruiting with a public careers page, and onboarding/offboarding workflows are all included from the Growth plan. This is what Collarone runs on today.' },
+  { q: 'Can I manage staff leave and recruiting on Collarone?', a: 'Yes — leave management, task tracking, visitor management, recruiting with a public careers page, and onboarding/offboarding workflows are all included from Starter, the day you sign up. This is what Collarone runs on today.' },
   { q: 'Is my company’s data secure?', a: 'Every screen checks who’s allowed to see it before showing anything, verified role by role before it ships.' },
   { q: 'What about payroll?', a: 'Payroll — with Nigerian PAYE, Pension, NHF and NSITF built in — is in testing and opening to pilot businesses soon. It’s part of the Scale plan once it’s out, not something we’re rushing out untested. When it is, it never touches your bank account directly — Collarone prepares the disbursement, your bank or payment provider executes it.' },
   { q: 'How long does it take to get started?', a: 'During early access, we set up your space personally — reach out on WhatsApp or email and we’ll have your business live the same day.' },
@@ -73,6 +82,18 @@ const faqs = [
 ];
 
 export default function Landing() {
+  const reduce = useReducedMotion();
+  const heroTextProps = reduce
+    ? {}
+    : { variants: heroStagger, initial: 'hidden', animate: 'show' };
+  const heroItemVariants = reduce ? {} : { variants: heroItem };
+  const heroShotProps = reduce
+    ? {}
+    : {
+        initial: { opacity: 0, y: 28, scale: 0.96, rotate: 1.5 },
+        animate: { opacity: 1, y: 0, scale: 1, rotate: 0 },
+        transition: { duration: 0.9, delay: 0.3, ease: [0.16, 0.8, 0.2, 1] },
+      };
   return (
     <div className="cl">
       <nav className="cl-nav">
@@ -98,51 +119,42 @@ export default function Landing() {
           <div className="cl-orb o2" />
           <div className="cl-orb o3" />
         </div>
-        <div className="cl-wrap cl-hero-inner">
-          <span className="cl-kicker"><span className="cl-dot" />Now onboarding early businesses</span>
-          <h1>Run your whole business.<br /><span className="cl-grad-word">One login.</span></h1>
-          <p className="cl-hero-sub">Your team, leave, tasks and front desk — proven and live today, with customers and your website joining the same space.</p>
-          <div className="cl-hero-ctas">
-            <a className="cl-btn cl-btn-primary" href="#contact">Get started free</a>
-            <a className="cl-btn cl-btn-ghost" href="#platform">See what's inside</a>
-          </div>
-          <div className="cl-chip-row">
-            <span className="cl-chip">{I.people}Manage your team</span>
-            <span className="cl-chip">{I.calendar}Track leave</span>
-            <span className="cl-chip">{I.chat}Manage customers</span>
-            <span className="cl-chip">{I.globe}Build your website</span>
-          </div>
-        </div>
+        <div className="cl-wrap cl-hero-grid">
+          <motion.div className="cl-hero-inner" {...heroTextProps}>
+            <motion.span {...heroItemVariants} className="cl-kicker"><span className="cl-dot" />Now onboarding early businesses</motion.span>
+            <motion.h1 {...heroItemVariants}>Run your whole business.<br /><span className="cl-grad-word">One login.</span></motion.h1>
+            <motion.p {...heroItemVariants} className="cl-hero-sub">Your team, leave, tasks and front desk — proven and live today, with customers and your website joining the same space.</motion.p>
+            <motion.div {...heroItemVariants} className="cl-hero-ctas">
+              <a className="cl-btn cl-btn-primary" href="#contact">Get started</a>
+              <a className="cl-btn cl-btn-ghost" href="#platform">See what's inside</a>
+            </motion.div>
+            <motion.div {...heroItemVariants} className="cl-chip-row">
+              <span className="cl-chip">{I.people}Manage your team</span>
+              <span className="cl-chip">{I.calendar}Track leave</span>
+              <span className="cl-chip">{I.chat}Manage customers</span>
+              <span className="cl-chip">{I.globe}Build your website</span>
+            </motion.div>
+          </motion.div>
 
-        <div className="cl-wrap">
-          <Reveal className="cl-hero-shot">
+          <motion.div className="cl-hero-shot" {...heroShotProps}>
             <div className="cl-browser-bar">
               <span className="cl-dotb r" /><span className="cl-dotb y" /><span className="cl-dotb g" />
               <span className="cl-url">collarone.app/home</span>
             </div>
             <div className="cl-mock">
-              <div className="cl-mock-rail">
-                <div className="cl-ritem active"><span className="cl-dot2" />Home</div>
-                <div className="cl-ritem"><span className="cl-dot2" />People</div>
-                <div className="cl-ritem"><span className="cl-dot2" />Leave</div>
-                <div className="cl-ritem"><span className="cl-dot2" />Tasks</div>
-                <div className="cl-ritem"><span className="cl-dot2" />Visitors</div>
+              <div className="cl-mtitle">Good morning, Amaka</div>
+              <div className="cl-mock-cards">
+                <div className="cl-mc"><div className="cl-mv">248</div><div className="cl-ml">Active staff</div></div>
+                <div className="cl-mc"><div className="cl-mv">12</div><div className="cl-ml">On leave</div></div>
+                <div className="cl-mc"><div className="cl-mv">5</div><div className="cl-ml">Visitors today</div></div>
               </div>
-              <div>
-                <div className="cl-mtitle">Good morning, Amaka</div>
-                <div className="cl-mock-cards">
-                  <div className="cl-mc"><div className="cl-mv">248</div><div className="cl-ml">Active staff</div></div>
-                  <div className="cl-mc"><div className="cl-mv">12</div><div className="cl-ml">On leave this week</div></div>
-                  <div className="cl-mc"><div className="cl-mv">5</div><div className="cl-ml">Visitors today</div></div>
-                </div>
-                <div className="cl-mock-table">
-                  <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" /><span className="cl-mock-badge">Approved</span></div>
-                  <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" style={{ maxWidth: 100 }} /><span className="cl-mock-badge">Approved</span></div>
-                  <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" style={{ maxWidth: 120 }} /><span className="cl-mock-badge">Approved</span></div>
-                </div>
+              <div className="cl-mock-table">
+                <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" /><span className="cl-mock-badge">Approved</span></div>
+                <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" style={{ maxWidth: 90 }} /><span className="cl-mock-badge">Approved</span></div>
+                <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" style={{ maxWidth: 110 }} /><span className="cl-mock-badge">Approved</span></div>
               </div>
             </div>
-          </Reveal>
+          </motion.div>
         </div>
       </header>
 
@@ -201,34 +213,34 @@ export default function Landing() {
         <div className="cl-wrap">
           <Reveal className="cl-sec-head">
             <p className="cl-eyebrow">Pricing</p>
-            <h2 className="cl-sec-h">Pay for the team you have</h2>
-            <p className="cl-sec-lede">We priced against the Nigerian market floor, then launched 47% below it. Sign up now and that rate is yours — locked in, even as our plans grow.</p>
+            <h2 className="cl-sec-h">A base fee for your space, plus your team</h2>
+            <p className="cl-sec-lede">One low monthly base for your workspace, then a flat per-staff rate. No forex markup, no dollar pricing — and your rate is locked in at sign-up for as long as you stay.</p>
           </Reveal>
           <div className="cl-grid3">
             <Reveal className="cl-price-card">
+              <span className="cl-price-badge">Founding rate</span>
               <div className="cl-price-plan">STARTER</div>
-              <div className="cl-price-amt">Free</div>
-              <div className="cl-price-sub">Up to 10 people</div>
-              <ul><li>Public website &amp; careers page</li><li>Staff directory &amp; org chart</li><li>Self-service profiles</li></ul>
-              <a className="cl-btn cl-btn-ghost" href="#contact">Start free</a>
+              <div className="cl-price-amt">₦10,000<small>/mo</small></div>
+              <div className="cl-price-sub">+ ₦1,000 per staff member/mo</div>
+              <ul><li>Full People &amp; Operations suite — directory, org chart, self-service</li><li>Leave, tasks &amp; visitor management</li><li>Recruiting &amp; public careers page</li><li>Public website &amp; your own domain</li></ul>
+              <a className="cl-btn cl-btn-ghost" href="#contact">Start your space</a>
             </Reveal>
             <Reveal className="cl-price-card cl-feat" delay={0.06}>
-              <span className="cl-price-badge">Founding rate</span>
               <div className="cl-price-plan">GROWTH</div>
-              <div className="cl-price-amt">₦350<small>/staff/mo</small></div>
-              <div className="cl-price-sub">Scales with your team, rate locked at sign-up</div>
-              <ul><li>Everything in Starter</li><li>Leave, tasks, visitor management</li><li>Recruiting, onboarding &amp; offboarding</li><li>Customer &amp; sales CRM, once live</li></ul>
+              <div className="cl-price-amt">₦18,000<small>/mo</small></div>
+              <div className="cl-price-sub">+ ₦1,500 per staff member/mo</div>
+              <ul><li>Everything in Starter</li><li>Performance reviews &amp; compliance vault</li><li>Customer &amp; sales CRM, once live</li><li>Priority support</li></ul>
               <a className="cl-btn cl-btn-primary" href="#contact">Get started</a>
             </Reveal>
             <Reveal className="cl-price-card" delay={0.12}>
               <div className="cl-price-plan">SCALE</div>
-              <div className="cl-price-amt">₦1,050<small>/staff/mo</small></div>
-              <div className="cl-price-sub">47% below Nigerian market rate</div>
-              <ul><li>Everything in Growth</li><li>Performance reviews &amp; compliance vault</li><li>Payroll, as it opens to pilot businesses</li><li>Priority support</li></ul>
+              <div className="cl-price-amt">₦30,000<small>/mo</small></div>
+              <div className="cl-price-sub">+ ₦2,000 per staff member/mo</div>
+              <ul><li>Everything in Growth</li><li>Payroll — PAYE, Pension, NHF, NSITF — as it opens to pilots</li><li>Dedicated onboarding &amp; support</li></ul>
               <a className="cl-btn cl-btn-ghost" href="#contact">Talk to us</a>
             </Reveal>
           </div>
-          <p className="cl-price-note">Benchmarked against comparable Nigerian HR &amp; payroll software (~₦2,000/employee/month). Your per-seat rate stays fixed for as long as you stay with us — tiers and features can grow without your price jumping.</p>
+          <p className="cl-price-note">Every plan bundles whole suites, not pieces of one — People &amp; Operations ships complete from Starter, so you're never missing the one feature you actually need. Your base fee and per-seat rate are both locked in at sign-up.</p>
         </div>
       </section>
 
