@@ -1,5 +1,6 @@
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion, useScroll, useTransform, useMotionValue, useSpring, useMotionValueEvent } from 'framer-motion';
 import './Landing.css';
 
 const Mark = ({ size = 24 }) => (
@@ -25,7 +26,7 @@ const I = {
   chev: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>,
 };
 
-function Reveal({ children, delay = 0, className }) {
+function Reveal({ children, delay = 0, className, hover = false }) {
   const reduce = useReducedMotion();
   if (reduce) return <div className={className}>{children}</div>;
   return (
@@ -35,11 +36,29 @@ function Reveal({ children, delay = 0, className }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-60px' }}
       transition={{ duration: 0.6, delay, ease: [0.2, 0.7, 0.3, 1] }}
+      {...(hover ? {
+        whileHover: { y: -8, transition: { duration: 0.25, ease: [0.2, 0.7, 0.3, 1] } },
+        whileTap: { scale: 0.98 },
+      } : {})}
     >
       {children}
     </motion.div>
   );
 }
+
+function Marquee({ items }) {
+  return (
+    <div className="cl-marquee">
+      <div className="cl-marquee-track">
+        {[...items, ...items].map((t, i) => (
+          <span className="cl-marquee-item" key={i}>{t}<span className="cl-marquee-dot">•</span></span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const marqueeItems = ['Staff Directory', 'Leave Management', 'Task Tracking', 'Visitor Sign-in', 'Recruiting & Careers', 'Onboarding', 'Performance Reviews', 'Compliance Vault', 'Payroll — PAYE · Pension · NHF', 'Customer CRM', 'Website Builder'];
 
 const heroStagger = {
   hidden: {},
@@ -94,9 +113,32 @@ export default function Landing() {
         animate: { opacity: 1, y: 0, scale: 1, rotate: 0 },
         transition: { duration: 0.9, delay: 0.3, ease: [0.16, 0.8, 0.2, 1] },
       };
+
+  const [scrolled, setScrolled] = useState(false);
+  const { scrollY } = useScroll();
+  useMotionValueEvent(scrollY, 'change', (v) => setScrolled(v > 10));
+
+  const heroRef = useRef(null);
+  const [glowOn, setGlowOn] = useState(false);
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const gx = useSpring(mx, { stiffness: 110, damping: 22, mass: 0.5 });
+  const gy = useSpring(my, { stiffness: 110, damping: 22, mass: 0.5 });
+  const handleHeroMove = (e) => {
+    if (reduce || !heroRef.current) return;
+    const rect = heroRef.current.getBoundingClientRect();
+    mx.set(e.clientX - rect.left);
+    my.set(e.clientY - rect.top);
+  };
+
+  const { scrollYProgress: heroProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
+  const o1y = useTransform(heroProgress, [0, 1], [0, -70]);
+  const o2y = useTransform(heroProgress, [0, 1], [0, -30]);
+  const o3y = useTransform(heroProgress, [0, 1], [0, -120]);
+
   return (
     <div className="cl">
-      <nav className="cl-nav">
+      <nav className={`cl-nav${scrolled ? ' cl-nav-scrolled' : ''}`}>
         <div className="cl-wrap">
           <a className="cl-brand" href="#top">
             <Mark size={24} />
@@ -113,12 +155,26 @@ export default function Landing() {
         </div>
       </nav>
 
-      <header className="cl-hero" id="top">
+      <header
+        className="cl-hero"
+        id="top"
+        ref={heroRef}
+        onMouseMove={handleHeroMove}
+        onMouseEnter={() => setGlowOn(true)}
+        onMouseLeave={() => setGlowOn(false)}
+      >
         <div className="cl-orb-field" aria-hidden="true">
-          <div className="cl-orb o1" />
-          <div className="cl-orb o2" />
-          <div className="cl-orb o3" />
+          <motion.div className="cl-orb o1" style={reduce ? undefined : { y: o1y }} />
+          <motion.div className="cl-orb o2" style={reduce ? undefined : { y: o2y }} />
+          <motion.div className="cl-orb o3" style={reduce ? undefined : { y: o3y }} />
         </div>
+        {!reduce && (
+          <motion.div
+            className={`cl-cursor-glow${glowOn ? ' show' : ''}`}
+            style={{ left: gx, top: gy }}
+            aria-hidden="true"
+          />
+        )}
         <div className="cl-wrap cl-hero-grid">
           <motion.div className="cl-hero-inner" {...heroTextProps}>
             <motion.span {...heroItemVariants} className="cl-kicker"><span className="cl-dot" />Now onboarding early businesses</motion.span>
@@ -158,6 +214,8 @@ export default function Landing() {
         </div>
       </header>
 
+      <Marquee items={marqueeItems} />
+
       <section className="cl-sec" id="capabilities">
         <div className="cl-wrap">
           <Reveal className="cl-sec-head">
@@ -166,10 +224,10 @@ export default function Landing() {
             <p className="cl-sec-lede">Every screen does one job well. No settings maze, no module you have to configure before it's useful.</p>
           </Reveal>
           <div className="cl-grid4">
-            <Reveal className="cl-card"><div className="cl-icon-wrap">{I.bolt}</div><h3>Set up in minutes</h3><p>Sign up, add your team, and your space is ready — no onboarding call required.</p></Reveal>
-            <Reveal className="cl-card" delay={0.05}><div className="cl-icon-wrap">{I.shield}</div><h3>Access, done right</h3><p>Every screen checks who's allowed to see it — tested as different roles before anything ships.</p></Reveal>
-            <Reveal className="cl-card" delay={0.1}><div className="cl-icon-wrap">{I.money}</div><h3>Priced in naira</h3><p>Pay by transfer or card, no forex markup, no bill that moves with the exchange rate.</p></Reveal>
-            <Reveal className="cl-card" delay={0.15}><div className="cl-icon-wrap">{I.globeBig}</div><h3>Grows with you</h3><p>Start with a website and a staff list. Turn on leave, tasks and the rest the day you need them.</p></Reveal>
+            <Reveal className="cl-card" hover><div className="cl-icon-wrap">{I.bolt}</div><h3>Set up in minutes</h3><p>Sign up, add your team, and your space is ready — no onboarding call required.</p></Reveal>
+            <Reveal className="cl-card" delay={0.05} hover><div className="cl-icon-wrap">{I.shield}</div><h3>Access, done right</h3><p>Every screen checks who's allowed to see it — tested as different roles before anything ships.</p></Reveal>
+            <Reveal className="cl-card" delay={0.1} hover><div className="cl-icon-wrap">{I.money}</div><h3>Priced in naira</h3><p>Pay by transfer or card, no forex markup, no bill that moves with the exchange rate.</p></Reveal>
+            <Reveal className="cl-card" delay={0.15} hover><div className="cl-icon-wrap">{I.globeBig}</div><h3>Grows with you</h3><p>Start with a website and a staff list. Turn on leave, tasks and the rest the day you need them.</p></Reveal>
           </div>
         </div>
       </section>
@@ -183,7 +241,7 @@ export default function Landing() {
           </Reveal>
           <div className="cl-grid3">
             {modules.map((m, i) => (
-              <Reveal className="cl-module-card" key={m.name} delay={i * 0.06}>
+              <Reveal className="cl-module-card" key={m.name} delay={i * 0.06} hover>
                 <div className="cl-module-head"><h3>{m.name}</h3><span className={`cl-pill ${m.status}`}>{m.status === 'live' ? 'Live' : 'Coming soon'}</span></div>
                 <p style={{ fontSize: 14, color: 'var(--text-soft)', margin: 0 }}>{m.desc}</p>
                 <ul>{m.items.map((it) => <li key={it}>{it}</li>)}</ul>
@@ -217,7 +275,7 @@ export default function Landing() {
             <p className="cl-sec-lede">One low monthly base for your workspace, then a flat per-staff rate. No forex markup, no dollar pricing — and your rate is locked in at sign-up for as long as you stay.</p>
           </Reveal>
           <div className="cl-grid3">
-            <Reveal className="cl-price-card">
+            <Reveal className="cl-price-card" hover>
               <span className="cl-price-badge">Founding rate</span>
               <div className="cl-price-plan">STARTER</div>
               <div className="cl-price-amt">₦10,000<small>/mo</small></div>
@@ -225,14 +283,14 @@ export default function Landing() {
               <ul><li>Full People &amp; Operations suite — directory, org chart, self-service</li><li>Leave, tasks &amp; visitor management</li><li>Recruiting &amp; public careers page</li><li>Public website &amp; your own domain</li></ul>
               <a className="cl-btn cl-btn-ghost" href="#contact">Start your space</a>
             </Reveal>
-            <Reveal className="cl-price-card cl-feat" delay={0.06}>
+            <Reveal className="cl-price-card cl-feat" delay={0.06} hover>
               <div className="cl-price-plan">GROWTH</div>
               <div className="cl-price-amt">₦18,000<small>/mo</small></div>
               <div className="cl-price-sub">+ ₦1,500 per staff member/mo</div>
               <ul><li>Everything in Starter</li><li>Performance reviews &amp; compliance vault</li><li>Customer &amp; sales CRM, once live</li><li>Priority support</li></ul>
               <a className="cl-btn cl-btn-primary" href="#contact">Get started</a>
             </Reveal>
-            <Reveal className="cl-price-card" delay={0.12}>
+            <Reveal className="cl-price-card" delay={0.12} hover>
               <div className="cl-price-plan">SCALE</div>
               <div className="cl-price-amt">₦30,000<small>/mo</small></div>
               <div className="cl-price-sub">+ ₦2,000 per staff member/mo</div>
