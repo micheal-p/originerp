@@ -132,11 +132,32 @@ export default async function handler(req, res) {
       return json(res, 200, { ok: true });
     }
 
-    // 'impersonate' (real magic-link login as a customer's own admin) removed
-    // deliberately — platform admin must never see a customer's internal
-    // business data. Replaced by platform_admin_test_suite() (count-only
-    // suite health check, see supabase/platform_suite_test.sql), called
-    // directly from the client via Supabase RPC, not through this function.
+    // 'guest-mode' — explicitly re-requested by the user after the earlier
+    // "test suites" count-only check: they want to actually click through a
+    // real org's UI to unit-test it, not just see row counts. Real magic-link
+    // login as that org's own super_admin, heavily audited, redirected with
+    // a ?guest=1 marker so the app can show a persistent "TEST MODE" banner
+    // and an explicit exit action for the whole session (see AppLayout.jsx).
+    if (action === 'guest-mode') {
+      await requirePlatformAdmin();
+
+      const { orgId } = body;
+      if (!orgId) return json(res, 400, { message: 'orgId is required.' });
+      const { data: org } = await admin.from('organizations').select('name, slug').eq('id', orgId).maybeSingle();
+      const { data: target } = await admin.from('profiles').select('id, email, name')
+        .eq('org_id', orgId).eq('role', 'super_admin').limit(1).maybeSingle();
+      if (!target) return json(res, 404, { message: 'This organization has no admin account to guest into.' });
+
+      const origin = req.headers.origin || 'https://collarone.vercel.app';
+      const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
+        type: 'magiclink', email: target.email,
+        options: { redirectTo: `${origin}/?guest=1&guestOrgId=${orgId}&guestOrgName=${encodeURIComponent(org?.name || '')}` },
+      });
+      if (linkErr) return json(res, 400, { message: linkErr.message });
+
+      await logAudit('guest_mode', orgId, { targetProfileId: target.id, targetEmail: target.email });
+      return json(res, 200, { actionLink: link.properties.action_link, name: target.name, email: target.email });
+    }
 
     if (action === 'reset-password') {
       const { id, password } = body;

@@ -5,8 +5,10 @@ import { FOUNDING_ORG_ID } from '../config/org.js';
 import PlatformShell from '../components/PlatformShell.jsx';
 
 const STATUS_LABEL = { pending_payment: 'Pending payment', active: 'Active', suspended: 'Suspended', cancelled: 'Cancelled' };
-const AUDIT_LABEL = { confirm_payment: 'Confirmed payment', delete_org: 'Deleted organization', impersonate: 'Impersonated admin (retired)' };
+const AUDIT_LABEL = { confirm_payment: 'Confirmed payment', delete_org: 'Deleted organization', impersonate: 'Impersonated admin (retired)', guest_mode: 'Guested into organization' };
 const ALL_SUITE_KEYS = ['hr', 'leave', 'tasks', 'visitors', 'payroll', 'crm', 'attendance', 'benefits', 'it-assets', 'procurement', 'inventory', 'finance', 'projects', 'documents'];
+const COUNTRY_FLAG = { NG: '🇳🇬', GH: '🇬🇭', KE: '🇰🇪', ZA: '🇿🇦', EG: '🇪🇬', GB: '🇬🇧', US: '🇺🇸' };
+const countryFlag = (code) => COUNTRY_FLAG[code] || '🌍';
 const naira = (kobo) => `₦${(kobo / 100).toLocaleString()}`;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -23,6 +25,38 @@ const I = {
 };
 
 const glass = { background: 'rgba(20,22,30,0.55)', border: '1px solid rgba(244,241,234,0.10)', borderRadius: 16, backdropFilter: 'blur(14px)' };
+
+function StatusWidget() {
+  const [live, setLive] = useState(null);
+  const [openIncident, setOpenIncident] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/health').then((r) => r.json()).then(setLive).catch(() => {});
+    apiGet('/status/incidents').then((d) => setOpenIncident((d.incidents || []).find((i) => !i.resolved_at) || null)).catch(() => {});
+  }, []);
+
+  const state = live ? live.status : 'checking';
+  const color = { operational: '#5fbf5f', degraded: '#eab308', down: '#e05555', checking: 'rgba(244,241,234,0.3)' }[state];
+  const label = { operational: 'All systems operational', degraded: 'Degraded performance', down: 'Service disruption', checking: 'Checking…' }[state];
+
+  return (
+    <motion.a href="/status" target="_blank" rel="noreferrer"
+      initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} whileHover={{ y: -3 }}
+      style={{ ...glass, padding: '20px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', marginBottom: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, boxShadow: `0 0 8px ${color}` }} />
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#F4F1EA' }}>{label}</div>
+          <div style={{ fontSize: 12, color: 'rgba(244,241,234,0.45)', marginTop: 2 }}>
+            {live ? `Checked just now, ${live.responseMs}ms` : 'Checking…'}
+            {openIncident && <span style={{ color: '#e88a8a' }}> · ongoing incident since {new Date(openIncident.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>}
+          </div>
+        </div>
+      </div>
+      <span style={{ fontSize: 12.5, color: 'rgba(244,241,234,0.4)' }}>Full status page →</span>
+    </motion.a>
+  );
+}
 
 function StatCard({ icon, label, value, accent, delay }) {
   return (
@@ -70,7 +104,7 @@ function DeleteOrgModal({ org, onClose, onConfirm, busy }) {
   );
 }
 
-function OrgRow({ org, staffCount, testingOrg, suiteResults, onTest, onDelete, index, reduce }) {
+function OrgRow({ org, staffCount, testingOrg, suiteResults, onTest, onDelete, onGuest, guestingOrg, index, reduce }) {
   const [expanded, setExpanded] = useState(false);
   const results = suiteResults[org.id];
 
@@ -79,9 +113,10 @@ function OrgRow({ org, staffCount, testingOrg, suiteResults, onTest, onDelete, i
       initial={reduce ? {} : { opacity: 0, x: -12 }} animate={reduce ? {} : { opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: index * 0.05 }}
       style={{ ...glass, marginBottom: 10, overflow: 'hidden' }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.9fr 1fr 0.6fr 1fr auto auto', gap: 12, alignItems: 'center', padding: '16px 18px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.5fr 0.9fr 1fr 0.6fr 1fr auto auto auto', gap: 12, alignItems: 'center', padding: '16px 18px' }}>
         <div style={{ fontWeight: 600, color: '#F4F1EA', fontSize: 14.5 }}>{org.name}</div>
         <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12.5, color: 'rgba(244,241,234,0.55)' }}>{org.slug}</div>
+        <div style={{ fontSize: 16 }} title={org.country}>{countryFlag(org.country)}</div>
         <div style={{ fontSize: 13, textTransform: 'capitalize', color: 'rgba(244,241,234,0.75)' }}>{org.plan_tier}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'rgba(244,241,234,0.75)' }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: org.status === 'active' ? '#5fbf5f' : 'rgba(244,241,234,0.3)', boxShadow: org.status === 'active' ? '0 0 6px #5fbf5f' : 'none' }} />
@@ -95,6 +130,14 @@ function OrgRow({ org, staffCount, testingOrg, suiteResults, onTest, onDelete, i
         >
           {testingOrg === org.id ? '…' : 'Test suites'}
         </button>
+        {org.status === 'active' && (
+          <button
+            onClick={() => onGuest(org)} disabled={guestingOrg === org.id}
+            style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', color: '#7fb2ff', borderRadius: 8, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            {guestingOrg === org.id ? '…' : 'Guest in'}
+          </button>
+        )}
         {org.id !== FOUNDING_ORG_ID ? (
           <button onClick={() => onDelete(org)} style={{ background: 'transparent', border: '1px solid rgba(224,54,54,0.35)', color: '#e05555', borderRadius: 8, padding: '7px 14px', fontSize: 12.5, cursor: 'pointer' }}>Delete</button>
         ) : <span />}
@@ -131,6 +174,7 @@ export default function PlatformAdmin() {
   const [toast, setToast] = useState(null);
   const [confirming, setConfirming] = useState(null);
   const [testingOrg, setTestingOrg] = useState(null);
+  const [guestingOrg, setGuestingOrg] = useState(null);
   const [suiteResults, setSuiteResults] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -183,6 +227,18 @@ export default function PlatformAdmin() {
     } catch (e) { flash(e.message, true); } finally { setTestingOrg(null); }
   };
 
+  // Real login as the org's own admin, for actually clicking through and
+  // unit-testing a suite — audited, and the landed session shows a
+  // persistent "guest mode" banner the whole time (see AppLayout.jsx).
+  const guestIntoOrg = async (org) => {
+    setGuestingOrg(org.id);
+    try {
+      const d = await apiPost('/platform/guest-mode', { orgId: org.id });
+      flash(`Opening ${org.name} as ${d.name}…`);
+      window.open(d.actionLink, '_blank', 'noopener');
+    } catch (e) { flash(e.message, true); } finally { setGuestingOrg(null); }
+  };
+
   const deleteOrg = async () => {
     setDeleting(true);
     try {
@@ -201,9 +257,10 @@ export default function PlatformAdmin() {
         <StatCard icon={I.pulse} label="Active in last 24h" value={activeLast24h} accent="#22c55e" delay={0.1} />
         <StatCard icon={I.coin} label="Pending payments" value={pendingTx.length} accent="#eab308" delay={0.15} />
       </div>
-      <p style={{ fontSize: 12, color: 'rgba(244,241,234,0.4)', marginBottom: 32 }}>
-        "Active in last 24h" is from real sign-in timestamps, not live presence. Page-visitor analytics live in Vercel's dashboard for this project — real uptime monitoring is a separate concern, see <a href="/status" style={{ color: '#FF9457' }}>the status page</a>.
+      <p style={{ fontSize: 12, color: 'rgba(244,241,234,0.4)', marginBottom: 16 }}>
+        "Active in last 24h" is from real sign-in timestamps, not live presence. Page-visitor analytics live in Vercel's dashboard for this project.
       </p>
+      <StatusWidget />
 
       {pendingTx.length > 0 && (
         <div style={{ marginBottom: 32 }}>
@@ -234,8 +291,8 @@ export default function PlatformAdmin() {
         {loading && <p style={{ color: 'rgba(244,241,234,0.5)', fontSize: 13.5 }}>Loading…</p>}
         {!loading && orgs.length === 0 && <p style={{ color: 'rgba(244,241,234,0.5)', fontSize: 13.5 }}>No organizations yet.</p>}
         {!loading && orgs.map((o, i) => (
-          <OrgRow key={o.id} org={o} staffCount={staffCountByOrg[o.id]} testingOrg={testingOrg} suiteResults={suiteResults}
-            onTest={testSuites} onDelete={setDeleteTarget} index={i} reduce={reduce} />
+          <OrgRow key={o.id} org={o} staffCount={staffCountByOrg[o.id]} testingOrg={testingOrg} guestingOrg={guestingOrg} suiteResults={suiteResults}
+            onTest={testSuites} onGuest={guestIntoOrg} onDelete={setDeleteTarget} index={i} reduce={reduce} />
         ))}
       </div>
 

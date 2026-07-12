@@ -9,7 +9,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 const json = (res, status, obj) => res.status(status).json(obj);
 
-const PLAN_BASE_FEE_KOBO = { starter: 1000000, growth: 1800000, scale: 3000000 }; // NGN 10k / 18k / 30k
+const PLAN_BASE_FEE_KOBO = { startup: 1500000, standard: 2500000, enterprise: 4500000 }; // NGN 15k / 25k / 45k
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -32,11 +32,11 @@ export default async function handler(req, res) {
 
     if (action === 'create') {
       const {
-        planTier, orgName, orgSlug, themeColor = '#FF5B1F', logoUrl = '', websiteType = 'none',
+        planTier, orgName, orgSlug, themeColor = '#FF5B1F', logoUrl = '', websiteType = 'none', country = 'NG',
         ownerName, email, password,
       } = body;
 
-      if (!['starter', 'growth', 'scale'].includes(planTier)) return json(res, 400, { message: 'Choose a plan.' });
+      if (!['startup', 'standard', 'enterprise'].includes(planTier)) return json(res, 400, { message: 'Choose a plan.' });
       if (!orgName?.trim()) return json(res, 400, { message: 'Company name is required.' });
       const slug = (orgSlug || '').trim().toLowerCase();
       if (!SLUG_RE.test(slug)) return json(res, 400, { message: 'Company handle must be 3–40 lowercase letters, numbers or hyphens.' });
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
       // organization and profile explicitly instead, same pattern as admin.js.
       const { data: org, error: orgErr } = await admin.from('organizations').insert({
         name: orgName.trim(), slug, plan_tier: planTier, status: 'pending_payment',
-        theme_color: themeColor, logo_url: logoUrl, website_type: websiteType, created_by: created.user.id,
+        theme_color: themeColor, logo_url: logoUrl, website_type: websiteType, country, created_by: created.user.id,
       }).select('id').single();
       if (orgErr || !org) {
         await admin.auth.admin.deleteUser(created.user.id);

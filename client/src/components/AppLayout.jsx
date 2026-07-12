@@ -28,6 +28,8 @@ const ADMIN_LINKS = [
   { label: 'Website',     to: '/admin/website' },
 ];
 
+const GUEST_KEY = 'collarone_guest_mode';
+
 export default function AppLayout({ breadcrumb = [], title, commandBar, children }) {
   const { user, logout } = useAuth();
   const nav = useNavigate();
@@ -38,6 +40,9 @@ export default function AppLayout({ breadcrumb = [], title, commandBar, children
   const [suites, setSuites] = useState([]);
   const [sbQ, setSbQ] = useState('');
   const [sbUsers, setSbUsers] = useState([]);
+  const [guestMode, setGuestMode] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem(GUEST_KEY) || 'null'); } catch { return null; }
+  });
   const waffleRef = useRef(null);
   const menuRef = useRef(null);
   const sbRef = useRef(null);
@@ -45,6 +50,24 @@ export default function AppLayout({ breadcrumb = [], title, commandBar, children
   useClickOutside(waffleRef, () => setWaffle(false));
   useClickOutside(menuRef, () => setMenu(false));
   useClickOutside(sbRef, () => { setSbQ(''); setSbUsers([]); });
+
+  // A platform admin arriving via "Guest in" lands here with ?guest=1 — pin
+  // that to sessionStorage (survives normal navigation within the tab) and
+  // scrub it from the visible URL so it isn't sitting in the address bar.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('guest') === '1') {
+      const info = { orgId: params.get('guestOrgId'), orgName: params.get('guestOrgName') || 'this organization', startedAt: Date.now() };
+      sessionStorage.setItem(GUEST_KEY, JSON.stringify(info));
+      setGuestMode(info);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  const exitGuestMode = () => {
+    sessionStorage.removeItem(GUEST_KEY);
+    logout();
+  };
 
   useEffect(() => {
     apiGet('/me/suites').then((d) => setSuites(d.suites)).catch(() => {});
@@ -77,6 +100,17 @@ export default function AppLayout({ breadcrumb = [], title, commandBar, children
 
   return (
     <div className="m365">
+      {guestMode && (
+        <div style={{
+          background: '#7C2D12', color: '#FFE8DA', fontSize: 13, fontWeight: 600,
+          padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, textAlign: 'center',
+        }}>
+          <span>🔍 Guest mode — viewing {guestMode.orgName} as its admin, for testing. Nothing here is your own data.</span>
+          <button onClick={exitGuestMode} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 100, padding: '3px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 700 }}>
+            Exit guest mode
+          </button>
+        </div>
+      )}
       {/* ---------- Suite bar ---------- */}
       <header className="suitebar">
         <div className="sb-left">

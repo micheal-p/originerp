@@ -15,6 +15,14 @@ export const PLANS = [
 ];
 export const ANNUAL_DISCOUNT = 0.15;
 
+// Nigeria-first, but Collarone's stated long-term goal is global — this is
+// the first real signal toward that, captured at signup rather than guessed.
+const COUNTRIES = [
+  { code: 'NG', name: 'Nigeria' }, { code: 'GH', name: 'Ghana' }, { code: 'KE', name: 'Kenya' },
+  { code: 'ZA', name: 'South Africa' }, { code: 'EG', name: 'Egypt' }, { code: 'GB', name: 'United Kingdom' },
+  { code: 'US', name: 'United States' }, { code: 'OTHER', name: 'Other' },
+];
+
 const SWATCHES = ['#FF5B1F', '#C2410C', '#0F766E', '#1D4ED8', '#7C3AED', '#BE185D', '#0A0E1A', '#166534'];
 
 const WEBSITE_TYPES = [
@@ -56,6 +64,7 @@ export default function Signup() {
 
   const [themeColor, setThemeColor] = useState('#FF5B1F');
   const [websiteType, setWebsiteType] = useState('hr_corporate');
+  const [country, setCountry] = useState('NG');
   const [logoUrl, setLogoUrl] = useState('');
   const [logoPreview, setLogoPreview] = useState('');
   const [logoUploading, setLogoUploading] = useState(false);
@@ -128,7 +137,7 @@ export default function Signup() {
     setBusy(true);
     try {
       const d = await callSignup('create', {
-        planTier, orgName: orgName.trim(), orgSlug, themeColor, websiteType, logoUrl,
+        planTier, orgName: orgName.trim(), orgSlug, themeColor, websiteType, logoUrl, country,
         ownerName: ownerName.trim(), email, password,
       });
       setResult(d);
@@ -196,6 +205,12 @@ export default function Signup() {
                 <span className="su-slug-suffix">.collarone.app</span>
               </div>
               {slugStatus.msg && <div className={`su-slug-msg ${slugStatus.state === 'ok' ? 'ok' : slugStatus.state === 'bad' ? 'bad' : ''}`}>{slugStatus.msg}</div>}
+            </div>
+            <div className="su-field">
+              <label>Country</label>
+              <select className="su-input" value={country} onChange={(e) => setCountry(e.target.value)}>
+                {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
             </div>
             <div className="su-actions">
               <button type="button" className="su-btn su-btn-ghost" onClick={back}>Back</button>

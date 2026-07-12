@@ -11,6 +11,7 @@ import AdminDepartments from './pages/admin/Departments.jsx';
 import AdminBilling from './pages/admin/Billing.jsx';
 import AdminWebsite from './pages/admin/website/WebsiteBuilder.jsx';
 import PlatformAdmin from './pages/PlatformAdmin.jsx';
+import PlatformAnalytics from './pages/PlatformAnalytics.jsx';
 import PublicSite from './pages/site/PublicSite.jsx';
 import Profile from './pages/Profile.jsx';
 import CareersIndex from './pages/careers/CareersIndex.jsx';
@@ -23,7 +24,11 @@ import EmbedContactForm from './pages/embed/EmbedContactForm.jsx';
 import Help from './pages/Help.jsx';
 
 // "/" is the public marketing page for a signed-out visitor, and the app
-// launcher for a signed-in one — same route, different audience.
+// launcher for a signed-in one — same route, different audience. A platform
+// admin's default landing is Platform Admin, not any tenant's workspace —
+// they're a different kind of account entirely, not "the founding org's
+// admin who also happens to run the platform." /workspace is the conscious,
+// explicit way to still reach the tenant view when they need it.
 function HomeRoute() {
   const { user, booting } = useAuth();
   if (booting) {
@@ -34,6 +39,7 @@ function HomeRoute() {
     );
   }
   if (!user) return <Landing />;
+  if (user.isPlatformAdmin) return <Navigate to="/platform-admin" replace />;
   return (
     <ProtectedRoute>
       <Launcher />
@@ -65,6 +71,15 @@ export default function App() {
       />
 
       <Route path="/" element={<HomeRoute />} />
+
+      <Route
+        path="/workspace"
+        element={
+          <ProtectedRoute>
+            <Launcher />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/admin/users"
@@ -107,6 +122,15 @@ export default function App() {
         element={
           <ProtectedRoute requirePlatformAdmin>
             <PlatformAdmin />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/platform-admin/analytics"
+        element={
+          <ProtectedRoute requirePlatformAdmin>
+            <PlatformAnalytics />
           </ProtectedRoute>
         }
       />
