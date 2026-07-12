@@ -1531,5 +1531,127 @@ export async function supabaseApi(path, opts = {}) {
     return { ok: true };
   }
 
+  // ---- projects ----
+  const PROJECT_SELECT = '*, owner:profiles!owner_id(id,name,email)';
+  if (head === 'GET /projects' && seg.length === 1) {
+    const { data, error } = await supabase.from('projects').select(PROJECT_SELECT).order('created_at', { ascending: false });
+    if (error) fail(400, error.message);
+    return { projects: data };
+  }
+  if (head === 'POST /projects' && seg.length === 1) {
+    const { name, description, startDate, targetDate } = body;
+    if (!name?.trim()) fail(400, 'Project name is required.');
+    const { data: { user } } = await supabase.auth.getUser();
+    const orgId = await myOrgId();
+    const { data, error } = await supabase.from('projects').insert({
+      name: name.trim(), description: description || '', owner_id: user.id,
+      start_date: startDate || null, target_date: targetDate || null, created_by: user.id, org_id: orgId,
+    }).select(PROJECT_SELECT).single();
+    if (error) fail(400, error.message);
+    await supabase.from('project_members').insert({ project_id: data.id, user_id: user.id, role: 'lead', org_id: orgId });
+    return { project: data };
+  }
+  if (method === 'PATCH' && seg[0] === 'projects' && seg.length === 2) {
+    const patch = {};
+    ['name','description','status'].forEach((k) => { if (body[k] !== undefined) patch[k] = body[k]; });
+    if (body.startDate !== undefined) patch.start_date = body.startDate || null;
+    if (body.targetDate !== undefined) patch.target_date = body.targetDate || null;
+    const { data, error } = await supabase.from('projects').update(patch).eq('id', seg[1]).select(PROJECT_SELECT).single();
+    if (error) fail(400, error.message);
+    return { project: data };
+  }
+  if (method === 'DELETE' && seg[0] === 'projects' && seg.length === 2) {
+    const { error } = await supabase.from('projects').delete().eq('id', seg[1]);
+    if (error) fail(400, error.message);
+    return { ok: true };
+  }
+
+  if (head === 'GET /projects' && seg[2] === 'members') {
+    const { data, error } = await supabase.from('project_members').select('*, user:profiles!user_id(id,name,email)').eq('project_id', seg[1]);
+    if (error) fail(400, error.message);
+    return { members: data };
+  }
+  if (head === 'POST /projects' && seg[2] === 'members') {
+    const { userId, role } = body;
+    if (!userId) fail(400, 'userId is required.');
+    const { data, error } = await supabase.from('project_members').insert({
+      project_id: seg[1], user_id: userId, role: role || 'member', org_id: await myOrgId(),
+    }).select('*, user:profiles!user_id(id,name,email)').single();
+    if (error) fail(400, /unique/i.test(error.message) ? 'That person is already a member.' : error.message);
+    return { member: data };
+  }
+  if (method === 'DELETE' && seg[0] === 'projects' && seg[2] === 'members' && seg.length === 4) {
+    const { error } = await supabase.from('project_members').delete().eq('project_id', seg[1]).eq('user_id', seg[3]);
+    if (error) fail(400, error.message);
+    return { ok: true };
+  }
+
+  if (head === 'GET /projects' && seg[2] === 'milestones') {
+    const { data, error } = await supabase.from('milestones').select('*').eq('project_id', seg[1]).order('sort_order');
+    if (error) fail(400, error.message);
+    return { milestones: data };
+  }
+  if (head === 'POST /projects' && seg[2] === 'milestones') {
+    const { title, dueDate, sortOrder } = body;
+    if (!title?.trim()) fail(400, 'Milestone title is required.');
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from('milestones').insert({
+      project_id: seg[1], title: title.trim(), due_date: dueDate || null, sort_order: sortOrder || 0,
+      created_by: user.id, org_id: await myOrgId(),
+    }).select().single();
+    if (error) fail(400, error.message);
+    return { milestone: data };
+  }
+  if (method === 'PATCH' && seg[0] === 'projects' && seg[2] === 'milestones' && seg.length === 4) {
+    const patch = {};
+    ['title','status','sortOrder'].forEach((k) => {
+      const col = { sortOrder: 'sort_order' }[k] || k;
+      if (body[k] !== undefined) patch[col] = body[k];
+    });
+    if (body.dueDate !== undefined) patch.due_date = body.dueDate || null;
+    const { data, error } = await supabase.from('milestones').update(patch).eq('id', seg[3]).select().single();
+    if (error) fail(400, error.message);
+    return { milestone: data };
+  }
+  if (method === 'DELETE' && seg[0] === 'projects' && seg[2] === 'milestones' && seg.length === 4) {
+    const { error } = await supabase.from('milestones').delete().eq('id', seg[3]);
+    if (error) fail(400, error.message);
+    return { ok: true };
+  }
+
+  const PTASK_SELECT = '*, assignee:profiles!assigned_to(id,name,email), milestone:milestones(id,title)';
+  if (head === 'GET /projects' && seg[2] === 'tasks') {
+    const { data, error } = await supabase.from('project_tasks').select(PTASK_SELECT).eq('project_id', seg[1]).order('created_at', { ascending: false });
+    if (error) fail(400, error.message);
+    return { tasks: data };
+  }
+  if (head === 'POST /projects' && seg[2] === 'tasks') {
+    const { title, description, milestoneId, assignedTo, priority, dueDate } = body;
+    if (!title?.trim()) fail(400, 'Task title is required.');
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from('project_tasks').insert({
+      project_id: seg[1], title: title.trim(), description: description || '', milestone_id: milestoneId || null,
+      assigned_to: assignedTo || null, priority: priority || 'medium', due_date: dueDate || null,
+      created_by: user.id, org_id: await myOrgId(),
+    }).select(PTASK_SELECT).single();
+    if (error) fail(400, error.message);
+    return { task: data };
+  }
+  if (method === 'PATCH' && seg[0] === 'projects' && seg[2] === 'tasks' && seg.length === 4) {
+    const patch = {};
+    ['title','description','status','priority'].forEach((k) => { if (body[k] !== undefined) patch[k] = body[k]; });
+    if (body.assignedTo !== undefined) patch.assigned_to = body.assignedTo || null;
+    if (body.milestoneId !== undefined) patch.milestone_id = body.milestoneId || null;
+    if (body.dueDate !== undefined) patch.due_date = body.dueDate || null;
+    const { data, error } = await supabase.from('project_tasks').update(patch).eq('id', seg[3]).select(PTASK_SELECT).single();
+    if (error) fail(400, error.message);
+    return { task: data };
+  }
+  if (method === 'DELETE' && seg[0] === 'projects' && seg[2] === 'tasks' && seg.length === 4) {
+    const { error } = await supabase.from('project_tasks').delete().eq('id', seg[3]);
+    if (error) fail(400, error.message);
+    return { ok: true };
+  }
+
   return fail(404, `No Supabase route for ${method} ${path}`);
 }
