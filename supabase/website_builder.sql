@@ -258,10 +258,14 @@ $$;
 grant execute on function public.delete_org_site() to authenticated;
 
 -- ============================================================================
--- Public rendering RPC — the ONLY anon-facing surface for site content.
--- Returns null if the org/slug has no published site (caller shows a 404).
+-- Public rendering — shared payload builder + two callers:
+--   public_get_site()  — anon-facing, requires published = true
+--   preview_get_site() — authenticated, org-admin-only, ignores published so
+--                        you can see your draft before publishing (the real
+--                        gap: there was previously NO way to preview an
+--                        unpublished site at all)
 -- ============================================================================
-create or replace function public.public_get_site(p_slug text)
+create or replace function public._build_site_payload(v_org_id uuid)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
   v_org record;
@@ -269,19 +273,18 @@ declare
   v_theme record;
   v_pages jsonb;
   v_products jsonb;
-  result jsonb;
 begin
-  select id, name, slug into v_org from public.organizations where slug = p_slug;
+  select id, name, slug into v_org from public.organizations where id = v_org_id;
   if v_org.id is null then return null; end if;
 
-  select * into v_site from public.org_sites where org_id = v_org.id and published = true;
+  select * into v_site from public.org_sites where org_id = v_org.id;
   if v_site.org_id is null then return null; end if;
 
   select * into v_theme from public.site_themes where key = v_site.theme_key;
 
   select coalesce(jsonb_agg(p order by p.sort_order), '[]'::jsonb) into v_pages
   from (
-    select pg.slug, pg.title, pg.is_home,
+    select pg.slug, pg.title, pg.is_home, pg.sort_order,
       (select coalesce(jsonb_agg(jsonb_build_object('type', b.type, 'content', b.content) order by b.sort_order), '[]'::jsonb)
        from public.site_blocks b where b.page_id = pg.id) as blocks
     from public.site_pages pg where pg.org_id = v_org.id order by pg.sort_order
@@ -290,7 +293,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', id, 'name', name, 'description', description, 'price', price, 'imageUrl', image_url) order by sort_order), '[]'::jsonb)
   into v_products from public.site_products where org_id = v_org.id and active = true;
 
-  result := jsonb_build_object(
+  return jsonb_build_object(
     'orgName', v_org.name,
     'slug', v_org.slug,
     'siteName', v_site.site_name,
@@ -300,13 +303,35 @@ begin
     'contactEmail', v_site.contact_email,
     'contactPhone', v_site.contact_phone,
     'contactWhatsapp', v_site.contact_whatsapp,
+    'published', v_site.published,
     'theme', jsonb_build_object('key', v_theme.key, 'name', v_theme.name, 'category', v_theme.category, 'layoutKey', v_theme.layout_key, 'accent', v_theme.accent, 'fontPair', v_theme.font_pair, 'tone', v_theme.tone),
     'pages', v_pages,
     'products', v_products
   );
+end;
+$$;
+
+create or replace function public.public_get_site(p_slug text)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare v_org_id uuid; result jsonb;
+begin
+  select id into v_org_id from public.organizations where slug = p_slug;
+  if v_org_id is null then return null; end if;
+  result := public._build_site_payload(v_org_id);
+  if result is null or not (result->>'published')::boolean then return null; end if;
   return result;
 end;
 $$;
+
+create or replace function public.preview_get_site()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_super_admin() then raise exception 'Not authorised'; end if;
+  return public._build_site_payload(public.my_org_id());
+end;
+$$;
+grant execute on function public.preview_get_site() to authenticated;
+grant execute on function public._build_site_payload(uuid) to authenticated;
 grant execute on function public.public_get_site(text) to anon, authenticated;
 
 -- ---- site-assets storage bucket (public — these are live public site images) --

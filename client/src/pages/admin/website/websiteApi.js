@@ -120,6 +120,13 @@ export const getPublicSite = async (slug) => {
   return data;
 };
 
+// Authenticated preview of your own org's site, regardless of published state.
+export const getPreviewSite = async () => {
+  const { data, error } = await supabase.rpc('preview_get_site');
+  if (error) throw new Error(error.message);
+  return data;
+};
+
 export const BLOCK_TYPES = {
   hero:         'Hero banner',
   text:         'Text section',

@@ -16,6 +16,64 @@ const SWATCHES = ['#FF5B1F', '#C2410C', '#0F766E', '#1D4ED8', '#7C3AED', '#BE185
 function Toast({ toast }) { if (!toast) return null; return <div className={`toast ${toast.isErr ? 'error' : ''}`}>{toast.msg}</div>; }
 function Field({ label, children }) { return <div className="field"><label>{label}</label>{children}</div>; }
 
+/* ---- ThemeMockup: a tiny visual preview so choosing a theme doesn't rely on
+   reading descriptions — one mockup skeleton per layout, tinted with the
+   theme's own accent/tone so it actually looks like that theme. ---- */
+function ThemeMockup({ theme }) {
+  const dark = theme.tone === 'dark';
+  const bg = dark ? '#15171c' : '#ffffff';
+  const surface = dark ? '#20232b' : '#f1f1f3';
+  const line = dark ? '#333844' : '#e2e2e6';
+  const accent = theme.accent;
+  const box = { width: '100%', height: 108, borderRadius: 8, overflow: 'hidden', background: bg, border: `1px solid ${line}` };
+
+  if (theme.layoutKey === 'ecommerce-grid') {
+    return (
+      <div style={box}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: `1px solid ${line}` }}>
+          <div style={{ width: 28, height: 6, borderRadius: 3, background: line }} />
+          <div style={{ width: 22, height: 10, borderRadius: 5, background: accent }} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, padding: 8 }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ background: surface, borderRadius: 4, height: 30 }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (theme.layoutKey === 'landing-hero') {
+    return (
+      <div style={box}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: `1px solid ${line}` }}>
+          <div style={{ width: 20, height: 6, borderRadius: 3, background: line }} />
+          <div style={{ width: 26, height: 8, borderRadius: 4, background: accent }} />
+        </div>
+        <div style={{ padding: '14px 10px', textAlign: 'center' }}>
+          <div style={{ width: '70%', height: 8, borderRadius: 4, background: dark ? '#454b58' : '#cfcfd4', margin: '0 auto 6px' }} />
+          <div style={{ width: '45%', height: 6, borderRadius: 3, background: line, margin: '0 auto 10px' }} />
+          <div style={{ width: 40, height: 12, borderRadius: 6, background: accent, margin: '0 auto' }} />
+        </div>
+      </div>
+    );
+  }
+  // company-profile
+  return (
+    <div style={box}>
+      <div style={{ padding: '4px 8px', fontSize: 8, textAlign: 'right', color: dark ? '#8a8f9c' : '#9a9aa0', borderBottom: `1px solid ${line}` }}>contact</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: `1px solid ${line}` }}>
+        <div style={{ width: 24, height: 6, borderRadius: 3, background: line }} />
+        <div style={{ display: 'flex', gap: 4 }}>{[0, 1, 2].map((i) => <div key={i} style={{ width: 14, height: 5, borderRadius: 2, background: i === 0 ? accent : line }} />)}</div>
+      </div>
+      <div style={{ padding: 10 }}>
+        <div style={{ width: '55%', height: 7, borderRadius: 4, background: dark ? '#454b58' : '#cfcfd4', marginBottom: 8 }} />
+        <div style={{ width: '90%', height: 5, borderRadius: 3, background: line, marginBottom: 4 }} />
+        <div style={{ width: '75%', height: 5, borderRadius: 3, background: line }} />
+      </div>
+    </div>
+  );
+}
+
 /* ---- Setup wizard ---------------------------------------------------------- */
 function SetupWizard({ themes, defaultName, onSetup, flash }) {
   const [step, setStep] = useState('category'); // category -> theme -> details
@@ -57,9 +115,9 @@ function SetupWizard({ themes, defaultName, onSetup, flash }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
             {categoryThemes.map((t) => (
               <button key={t.key} type="button" onClick={() => { setThemeKey(t.key); setStep('details'); }}
-                style={{ textAlign: 'left', padding: 16, borderRadius: 'var(--radius-lg)', border: '1px solid var(--line)', background: 'var(--surface)', cursor: 'pointer' }}>
-                <div style={{ height: 8, borderRadius: 4, background: t.accent, marginBottom: 10 }} />
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>{t.name}</div>
+                style={{ textAlign: 'left', padding: 12, borderRadius: 'var(--radius-lg)', border: '1px solid var(--line)', background: 'var(--surface)', cursor: 'pointer' }}>
+                <ThemeMockup theme={t} />
+                <div style={{ fontWeight: 700, margin: '10px 0 4px' }}>{t.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-2)' }}>{t.description}</div>
               </button>
             ))}
@@ -456,6 +514,7 @@ export default function AdminWebsite() {
             <button className={`lv-tab ${tab === 'pages' ? 'active' : ''}`} onClick={() => setTab('pages')}>Pages & content</button>
             {category === 'ecommerce' && <button className={`lv-tab ${tab === 'products' ? 'active' : ''}`} onClick={() => setTab('products')}>Products</button>}
             <button className={`lv-tab ${tab === 'publish' ? 'active' : ''}`} onClick={() => setTab('publish')}>Publish</button>
+            <a className="btn btn-ghost lv-apply" href={`/site/${org?.slug}?preview=1`} target="_blank" rel="noreferrer">Preview site</a>
           </div>
 
           {tab === 'settings' && <SettingsTab site={site} orgId={org.id} onSave={load} flash={flash} />}

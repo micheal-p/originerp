@@ -262,7 +262,7 @@ export default function Landing() {
             <div className="cl-stat-cell"><div className="cl-val">₦</div><div className="cl-lbl">Priced and billed in naira, no card from abroad required</div></div>
             <div className="cl-stat-cell"><div className="cl-val">36+1</div><div className="cl-lbl">Built to work the same in every Nigerian state, Lagos to Maiduguri</div></div>
             <div className="cl-stat-cell"><div className="cl-val">24/7</div><div className="cl-lbl">Your team, leave and front desk, live and checkable from your phone</div></div>
-            <div className="cl-stat-cell"><div className="cl-val">Eko</div><div className="cl-lbl">Designed and supported from Lagos, for Nigerian business hours</div></div>
+            <div className="cl-stat-cell"><div className="cl-val">🇳🇬</div><div className="cl-lbl">Designed, built and supported in Nigeria, for Nigerian business hours</div></div>
           </Reveal>
         </div>
       </section>
@@ -306,19 +306,19 @@ export default function Landing() {
         <div className="cl-wrap">
           <Reveal className="cl-sec-head">
             <p className="cl-eyebrow">How we started</p>
-            <h2 className="cl-sec-h">Built in Eko, for businesses like the one we started with</h2>
+            <h2 className="cl-sec-h">Built in Nigeria, for businesses across Nigeria</h2>
           </Reveal>
           <div className="cl-about-grid">
             <Reveal className="cl-about-copy">
-              <p>Collarone didn't start as a plan for a "business platform." It started as a tool built to solve one real problem for one real Nigerian business — watching what actually broke, what actually got used, and what a Lagos back office genuinely needed on an ordinary Monday.</p>
+              <p>Collarone didn't start as a plan for a "business platform." It started as a tool built to solve one real problem for one real Nigerian business — watching what actually broke, what actually got used, and what a Nigerian back office genuinely needed on an ordinary working day.</p>
               <p>Once it worked, the next question was obvious: why should only one company have this?</p>
-              <p>That's what Collarone is now — built in Lagos, for the Nigerian businesses quietly outgrowing spreadsheets and WhatsApp groups, tired of paying software bills that were never built with a single Nigerian working day in mind. We intend to bridge that gap directly: real business software, priced and built like it belongs here. Because it does.</p>
+              <p>That's what Collarone is now — built for the Nigerian businesses quietly outgrowing spreadsheets and WhatsApp groups, tired of paying for software that was never built with a single Nigerian working day in mind. Whether you're a startup finding your feet, a growing company standardising how you run, or an established business scaling across states, we're building this for how Nigerian companies actually operate — remote, hybrid and on-site teams alike. Real business software, priced and built like it belongs here. Because it does.</p>
             </Reveal>
             <Reveal className="cl-founder-card" delay={0.1}>
               <div className="cl-founder-avatar">AP</div>
               <div className="cl-founder-name">Aniebiet Pius</div>
               <div className="cl-founder-role">Founder, Collarone</div>
-              <div className="cl-founder-loc">{I.pin}Lagos (Eko), Nigeria</div>
+              <div className="cl-founder-loc">{I.pin}Nigeria</div>
             </Reveal>
           </div>
         </div>
@@ -363,7 +363,7 @@ export default function Landing() {
                 <Mark size={20} />
                 <span>Collar<em>One</em></span>
               </div>
-              <p>The business platform for Nigerian companies — team, leave, tasks and front desk today, customers and your website joining the same space. Built and supported from Lagos.</p>
+              <p>The business platform for Nigerian companies — team, leave, tasks and front desk today, customers and your website joining the same space. Built and supported in Nigeria.</p>
               <div className="cl-footer-contact">
                 <a href="https://wa.me/2348148128551" target="_blank" rel="noreferrer">WhatsApp</a>
                 <a href="mailto:hello@collarone.app">hello@collarone.app</a>
@@ -391,7 +391,7 @@ export default function Landing() {
           </div>
           <div className="cl-footer-bottom">
             <div className="cl-fnote">© 2026 Collarone. Made for Nigerian business.</div>
-            <div className="cl-footer-loc">{I.pin}Lagos, Nigeria</div>
+            <div className="cl-footer-loc">{I.pin}Nigeria</div>
           </div>
         </div>
       </footer>
