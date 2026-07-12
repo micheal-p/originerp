@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion, useScroll, useTransform, useMotionValue, useSpring, useMotionValueEvent } from 'framer-motion';
+import { SUITES, SUITE_META } from '../config/suites.js';
+import SuiteIcon from '../components/SuiteIcon.jsx';
 import './Landing.css';
 
 const Mark = ({ size = 24 }) => (
@@ -65,24 +67,32 @@ const PRICE_TIERS = [
   { key: 'standard', name: 'Standard', baseFee: 25000, included: 5, extraFee: 6000 },
   { key: 'enterprise', name: 'Enterprise', baseFee: 45000, included: 8, extraFee: 4000 },
 ];
-const TOTAL_SUITES = 14;
 const ANNUAL_DISCOUNT = 0.15;
 const PER_STAFF_FEE = 2000;
 const naira = (n) => `₦${Math.round(n).toLocaleString('en-NG')}`;
 
 function PriceCalculator() {
   const [tierKey, setTierKey] = useState('standard');
-  const [suiteCount, setSuiteCount] = useState(5);
+  const [selected, setSelected] = useState(() => new Set(SUITES.slice(0, 5).map((s) => s.key)));
   const [staffCount, setStaffCount] = useState(10);
   const [yearly, setYearly] = useState(false);
   const tier = PRICE_TIERS.find((t) => t.key === tierKey);
+  const suiteCount = selected.size;
   const extra = Math.max(0, suiteCount - tier.included);
   const monthly = tier.baseFee + extra * tier.extraFee + staffCount * PER_STAFF_FEE;
   const total = yearly ? monthly * 12 * (1 - ANNUAL_DISCOUNT) : monthly;
 
   const pickTier = (key) => {
     setTierKey(key);
-    setSuiteCount(PRICE_TIERS.find((t) => t.key === key).included);
+    setSelected(new Set(SUITES.slice(0, PRICE_TIERS.find((t) => t.key === key).included).map((s) => s.key)));
+  };
+
+  const toggleSuite = (key) => {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
   };
 
   return (
@@ -99,13 +109,26 @@ function PriceCalculator() {
           Bill yearly <span className="cl-calc-save">(save 15%)</span>
         </label>
       </div>
-      <div className="cl-calc-row">
-        <label className="cl-calc-slider-label">
-          How many suites do you need? <strong>{suiteCount}</strong> of {TOTAL_SUITES}
-        </label>
-        <input type="range" min={1} max={TOTAL_SUITES} value={suiteCount} onChange={(e) => setSuiteCount(Number(e.target.value))} className="cl-calc-slider" />
+
+      <label className="cl-calc-slider-label" style={{ display: 'block', marginBottom: 10 }}>
+        Pick your suites — <strong>{suiteCount}</strong> selected ({tier.name} includes {tier.included})
+      </label>
+      <div className="cl-calc-suites">
+        {SUITES.map((s) => {
+          const meta = SUITE_META[s.key] || {};
+          const on = selected.has(s.key);
+          return (
+            <button key={s.key} type="button" className={`cl-calc-suite ${on ? 'on' : ''}`} onClick={() => toggleSuite(s.key)}>
+              <span className="cl-calc-suite-icon" style={{ background: on ? meta.tint : 'var(--line)' }}>
+                <SuiteIcon name={meta.icon || 'grid'} size={16} color="#fff" />
+              </span>
+              {s.name}
+            </button>
+          );
+        })}
       </div>
-      <div className="cl-calc-row">
+
+      <div className="cl-calc-row" style={{ marginTop: 18 }}>
         <label className="cl-calc-slider-label">
           How many staff? <strong>{staffCount}</strong>
         </label>
@@ -136,32 +159,32 @@ const heroItem = {
 const modules = [
   {
     name: 'People & Operations', status: 'live',
-    desc: 'Directory, recruiting, leave, tasks and the front desk — the daily running of a business, proven in production.',
-    items: ['Staff directory, org chart, self-service profiles', 'Leave requests, task tracking, visitor sign-in', 'Public careers page — candidates apply, no login', 'Payroll, performance reviews and more, rolling out as each is proven'],
+    desc: 'The daily running of a business — directory, leave, tasks, the front desk, and time tracking.',
+    suites: ['hr', 'leave', 'tasks', 'visitors', 'attendance', 'benefits'],
   },
   {
-    name: 'Customers', status: 'soon',
-    desc: 'A CRM that treats a WhatsApp conversation as real customer activity, not an afterthought.',
-    items: ['Contacts, companies and deals in naira', 'Every conversation logged where it happens', 'Payments collected through Paystack'],
+    name: 'Money & Assets', status: 'live',
+    desc: 'Payroll with real Nigerian statutory deductions, plus everything that keeps a business funded and equipped.',
+    suites: ['payroll', 'finance', 'procurement', 'inventory', 'it-assets'],
   },
   {
-    name: 'Your Website', status: 'soon',
-    desc: 'A real public site for the business that doesn’t have one yet, from the same account.',
-    items: ['About, services and contact — live in minutes', 'The same engine behind our own careers pages', 'Bring your own domain when you’re ready'],
+    name: 'Customers & Growth', status: 'live',
+    desc: 'A CRM that treats a WhatsApp conversation as real activity, a public website, and everything else customer-facing.',
+    suites: ['crm', 'projects', 'documents'],
   },
 ];
 
 const faqs = [
-  { q: 'What is Collarone?', a: 'Collarone is a business platform for Nigerian companies — your team, leave, tasks and front desk in one place, with a customer CRM and website builder joining soon. All under one login, priced and billed in naira.' },
-  { q: 'Is Collarone only for large companies?', a: 'No. Starter is ₦10,000 a month plus ₦1,000 per staff member, and it ships with the full People &amp; Operations suite — not a stripped-down trial. Small teams get the same directory, leave, tasks and visitor management as everyone else.' },
-  { q: 'How much does Collarone cost?', a: 'Starter is ₦10,000/month + ₦1,000/staff. Growth is ₦18,000/month + ₦1,500/staff. Scale is ₦30,000/month + ₦2,000/staff. Every plan bundles whole suites rather than splitting features across tiers, and both your base fee and per-seat rate are locked in at sign-up. No dollar pricing, no forex markup.' },
-  { q: 'Does Collarone include a website builder?', a: 'Yes, on every plan including Starter. It’s the same engine behind our own public careers pages — about, services and contact pages live in minutes, with your own domain when you’re ready.' },
-  { q: 'Is there a CRM for managing customers?', a: 'A customer CRM is coming soon on the Growth plan and above — contacts, companies and deals in naira, with WhatsApp conversations logged as real customer activity.' },
-  { q: 'Can I manage staff leave and recruiting on Collarone?', a: 'Yes — leave management, task tracking, visitor management, recruiting with a public careers page, and onboarding/offboarding workflows are all included from Starter, the day you sign up. This is what Collarone runs on today.' },
-  { q: 'Is my company’s data secure?', a: 'Every screen checks who’s allowed to see it before showing anything, verified role by role before it ships.' },
-  { q: 'What about payroll?', a: 'Payroll — with Nigerian PAYE, Pension, NHF and NSITF built in — is in testing and opening to pilot businesses soon. It’s part of the Scale plan once it’s out, not something we’re rushing out untested. When it is, it never touches your bank account directly — Collarone prepares the disbursement, your bank or payment provider executes it.' },
+  { q: 'What is Collarone?', a: 'Collarone is a full business platform for Nigerian companies — HR, leave, tasks, visitor management, payroll, CRM, finance, projects, documents and more, all under one login, priced and billed in naira.' },
+  { q: 'Is Collarone only for large companies?', a: 'No. Startup is ₦15,000 a month, includes any 3 suites of your choice, and every suite ships complete — not a stripped-down trial. Small teams get the same real directory, leave, tasks and visitor management as an Enterprise customer.' },
+  { q: 'How much does Collarone cost?', a: 'Every tier is à la carte — pick whichever suites you need. Startup is ₦15,000/mo with 3 suites included (₦8,000 per extra suite). Standard is ₦25,000/mo with 5 included (₦6,000/extra). Enterprise is ₦45,000/mo with 8 included (₦4,000/extra). Every tier adds ₦2,000/staff, and paying yearly saves 15% off the total. Your rate locks in at sign-up. No dollar pricing, no forex markup.' },
+  { q: 'Does Collarone include a website builder?', a: 'Yes, on every tier. Pick from 10 starter themes across online store, landing page and company-profile categories, edit every page and block directly, and already have a site? Just link it instead — no migration required.' },
+  { q: 'Is there a CRM for managing customers?', a: 'Yes — contacts, companies and a WhatsApp-first activity log, live on every tier. An embeddable contact-form widget lets you capture leads from your own website too, straight into your CRM.' },
+  { q: 'Can I manage staff leave and recruiting on Collarone?', a: 'Yes — leave management, task tracking, visitor management, recruiting with a public careers page, onboarding/offboarding, performance reviews and a compliance vault are all live suites you can pick from day one.' },
+  { q: 'Is my company’s data secure?', a: 'Every screen checks who’s allowed to see it before showing anything, verified role by role, and every company\'s data is isolated from every other company\'s at the database level — verified directly, not just assumed.' },
+  { q: 'What about payroll?', a: 'Payroll is live — Nigerian PAYE, Pension, NHF and NSITF, configurable rate packs, and a Banking Wall so whoever liaises with your bank always knows what\'s new. It never touches your bank account directly — Collarone prepares the disbursement, your bank executes it.' },
   { q: 'How long does it take to get started?', a: 'During early access, we set up your space personally — reach out on WhatsApp or email and we’ll have your business live the same day.' },
-  { q: 'Is there a contract or can I cancel anytime?', a: 'Collarone is billed monthly with no long-term contract. Pricing scales with your active staff count, so your bill goes up or down as your team does — and your locked-in rate never changes.' },
+  { q: 'Is there a contract or can I cancel anytime?', a: 'Collarone is billed monthly (or yearly, for 15% off) with no long-term contract. Your locked-in rate never changes even if our published prices do.' },
 ];
 
 export default function Landing() {
@@ -307,10 +330,77 @@ export default function Landing() {
             {modules.map((m, i) => (
               <Reveal className="cl-module-card" key={m.name} delay={i * 0.06} hover>
                 <div className="cl-module-head"><h3>{m.name}</h3><span className={`cl-pill ${m.status}`}>{m.status === 'live' ? 'Live' : 'Coming soon'}</span></div>
-                <p style={{ fontSize: 14, color: 'var(--text-soft)', margin: 0 }}>{m.desc}</p>
-                <ul>{m.items.map((it) => <li key={it}>{it}</li>)}</ul>
+                <p style={{ fontSize: 14, color: 'var(--text-soft)', margin: '0 0 16px' }}>{m.desc}</p>
+                <div className="cl-module-suites">
+                  {m.suites.map((key) => {
+                    const s = SUITES.find((x) => x.key === key);
+                    const meta = SUITE_META[key] || {};
+                    return (
+                      <span className="cl-module-suite" key={key}>
+                        <span className="cl-module-suite-icon" style={{ background: meta.tint }}><SuiteIcon name={meta.icon || 'grid'} size={14} color="#fff" /></span>
+                        {s?.name}
+                      </span>
+                    );
+                  })}
+                </div>
               </Reveal>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="cl-sec" id="gallery">
+        <div className="cl-wrap">
+          <Reveal className="cl-sec-head">
+            <p className="cl-eyebrow">See it, don't just take our word for it</p>
+            <h2 className="cl-sec-h">A look inside a few of the suites</h2>
+          </Reveal>
+          <div className="cl-grid3">
+            <Reveal className="cl-gallery-shot" hover>
+              <div className="cl-browser-bar"><span className="cl-dotb r" /><span className="cl-dotb y" /><span className="cl-dotb g" /><span className="cl-url">Leave Management</span></div>
+              <div className="cl-mock">
+                <div className="cl-mtitle">Leave requests</div>
+                <div className="cl-mock-cards">
+                  <div className="cl-mc"><div className="cl-mv">3</div><div className="cl-ml">Pending</div></div>
+                  <div className="cl-mc"><div className="cl-mv">12</div><div className="cl-ml">Approved</div></div>
+                  <div className="cl-mc"><div className="cl-mv">18</div><div className="cl-ml">Days left</div></div>
+                </div>
+                <div className="cl-mock-table">
+                  <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" /><span className="cl-mock-badge">Approved</span></div>
+                  <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" style={{ maxWidth: 90 }} /><span className="cl-mock-badge cl-badge-pending">Pending</span></div>
+                </div>
+              </div>
+            </Reveal>
+            <Reveal className="cl-gallery-shot" delay={0.06} hover>
+              <div className="cl-browser-bar"><span className="cl-dotb r" /><span className="cl-dotb y" /><span className="cl-dotb g" /><span className="cl-url">CRM</span></div>
+              <div className="cl-mock">
+                <div className="cl-mtitle">Contacts</div>
+                <div className="cl-mock-cards">
+                  <div className="cl-mc"><div className="cl-mv">24</div><div className="cl-ml">Companies</div></div>
+                  <div className="cl-mc"><div className="cl-mv">8</div><div className="cl-ml">New leads</div></div>
+                  <div className="cl-mc"><div className="cl-mv">5</div><div className="cl-ml">This week</div></div>
+                </div>
+                <div className="cl-mock-table">
+                  <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" style={{ maxWidth: 110 }} /><span className="cl-mock-badge cl-badge-wa">WhatsApp</span></div>
+                  <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" /><span className="cl-mock-badge">Email</span></div>
+                </div>
+              </div>
+            </Reveal>
+            <Reveal className="cl-gallery-shot" delay={0.12} hover>
+              <div className="cl-browser-bar"><span className="cl-dotb r" /><span className="cl-dotb y" /><span className="cl-dotb g" /><span className="cl-url">Payroll</span></div>
+              <div className="cl-mock">
+                <div className="cl-mtitle">July payroll run</div>
+                <div className="cl-mock-cards">
+                  <div className="cl-mc"><div className="cl-mv">42</div><div className="cl-ml">Staff</div></div>
+                  <div className="cl-mc"><div className="cl-mv">₦4.2M</div><div className="cl-ml">Net pay</div></div>
+                  <div className="cl-mc"><div className="cl-mv">✓</div><div className="cl-ml">Approved</div></div>
+                </div>
+                <div className="cl-mock-table">
+                  <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" /><span className="cl-mock-badge">₦285,000</span></div>
+                  <div className="cl-mock-row"><div className="cl-mock-avatar" /><div className="cl-mock-bar" style={{ maxWidth: 90 }} /><span className="cl-mock-badge">₦198,500</span></div>
+                </div>
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>
