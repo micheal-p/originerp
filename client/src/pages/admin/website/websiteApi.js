@@ -149,15 +149,30 @@ export const BLOCK_TYPES = {
 };
 
 // Website insights: this org's own site traffic (site_visits, RLS-scoped)
-// plus how many leads/messages the site has produced.
+// plus how many leads/messages and orders the site has produced.
 export const getSiteInsights = async (orgId) => {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const [{ data: visits, error: vErr }, { count: leadCount }] = await Promise.all([
+  const [{ data: visits, error: vErr }, { count: leadCount }, { count: orderCount }] = await Promise.all([
     supabase.from('site_visits').select('page, country, created_at').eq('org_id', orgId).gte('created_at', since).order('created_at', { ascending: false }).limit(10000),
     supabase.from('crm_activities').select('id', { count: 'exact', head: true }).eq('org_id', orgId).eq('type', 'web_message'),
+    supabase.from('site_orders').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
   ]);
   if (vErr) throw new Error(vErr.message);
-  return { visits: visits || [], leadCount: leadCount || 0 };
+  return { visits: visits || [], leadCount: leadCount || 0, orderCount: orderCount || 0 };
+};
+
+// Store orders — checkout writes them via public_place_order; the org
+// manages status here.
+export const getOrders = async (orgId) => {
+  const { data, error } = await supabase.from('site_orders').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(300);
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+export const updateOrderStatus = async (id, status) => {
+  const { data, error } = await supabase.from('site_orders').update({ status }).eq('id', id).select().single();
+  if (error) throw new Error(error.message);
+  return data;
 };
 
 export const money = (n) => n == null ? '' : `₦${Number(n).toLocaleString('en-NG')}`;

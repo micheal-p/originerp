@@ -12,7 +12,7 @@
 // enquiries ("[Product enquiry] …" lands in the Messages inbox), the
 // subscribe block captures mailing-list emails as CRM contacts, and the
 // contact form was already a lead. PublicSite beacons per-page site_visits.
-import { useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiPost } from '../../api/client.js';
 
 const FONT_STACKS = {
@@ -213,8 +213,216 @@ function Features({ c, v }) {
   );
 }
 
-/* ---- products (with CRM enquiry + WhatsApp order) ---------------------------- */
+/* ---- cart ---------------------------------------------------------------------
+   Real store behaviour without demanding the merchant owns a payment
+   gateway: the cart builds an order, checkout takes the customer's details,
+   and payment is bank transfer to the merchant's own account (details shown
+   after ordering, proof sent on WhatsApp) or cash on delivery. */
+const CartCtx = createContext(null);
+const fmtN = (n) => `₦${Number(n || 0).toLocaleString('en-NG')}`;
+
+function CartProvider({ slug, children }) {
+  const storageKey = `collarone_cart_${slug}`;
+  const [items, setItems] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; }
+  });
+  const [open, setOpen] = useState(false);
+  useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify(items)); } catch { /* private mode */ } }, [items, storageKey]);
+
+  const add = (p) => {
+    setItems((s) => {
+      const found = s.find((x) => x.id === p.id);
+      return found ? s.map((x) => (x.id === p.id ? { ...x, qty: Math.min(99, x.qty + 1) } : x))
+                   : [...s, { id: p.id, name: p.name, price: p.price || 0, imageUrl: p.imageUrl || '', qty: 1 }];
+    });
+    setOpen(true);
+  };
+  const setQty = (id, qty) => setItems((s) => (qty < 1 ? s.filter((x) => x.id !== id) : s.map((x) => (x.id === id ? { ...x, qty: Math.min(99, qty) } : x))));
+  const clear = () => setItems([]);
+  const total = items.reduce((sum, x) => sum + (x.price || 0) * x.qty, 0);
+  const count = items.reduce((sum, x) => sum + x.qty, 0);
+
+  return <CartCtx.Provider value={{ items, add, setQty, clear, total, count, open, setOpen }}>{children}</CartCtx.Provider>;
+}
+
+function CartButton({ v }) {
+  const cart = useContext(CartCtx);
+  if (!cart) return null;
+  return (
+    <button onClick={() => cart.setOpen(true)} aria-label="Open cart"
+      style={{ ...btnStyle(v), padding: '8px 16px', fontSize: v.navCaps ? 11.5 : 13, display: 'inline-flex', alignItems: 'center', gap: 8, border: 'none' }}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2.5 3.5h3l2.6 12h10.4l2-8.5H6.2" /></svg>
+      Cart{cart.count > 0 && <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: 999, padding: '1px 8px', fontSize: 11.5, fontWeight: 800 }}>{cart.count}</span>}
+    </button>
+  );
+}
+
+function CartDrawer({ site, v }) {
+  const cart = useContext(CartCtx);
+  const [view, setView] = useState('cart'); // cart | checkout | done
+  const [f, setF] = useState({ name: '', phone: '', email: '', address: '', note: '', method: '' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [receipt, setReceipt] = useState(null);
+  const set = (k, val) => setF((s) => ({ ...s, [k]: val }));
+  const pay = site.payments || { enableTransfer: true, enableCod: true };
+  const methods = [
+    pay.enableTransfer && ['transfer', 'Bank transfer', 'Pay into the store’s account — details shown after you order.'],
+    pay.enableCod && ['cod', 'Pay on delivery', 'Pay cash or transfer when your order arrives.'],
+  ].filter(Boolean);
+  const waDigits = (site.contactWhatsapp || '').replace(/[^0-9]/g, '');
+
+  if (!cart || !cart.open) return null;
+
+  const input = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', border: '1px solid #dcdce0', background: '#fff', color: '#14161a' };
+  const label = { display: 'block', fontSize: 12.5, color: '#5c5f66', margin: '0 0 4px' };
+
+  const placeOrder = async (e) => {
+    e.preventDefault();
+    if (!f.name.trim()) return setError('Your name is required.');
+    if (!f.phone.trim()) return setError('Your phone number is required — it’s how the store reaches you.');
+    if (!f.method) return setError('Choose how you want to pay.');
+    setBusy(true); setError('');
+    try {
+      const d = await apiPost('/site/order', {
+        orgSlug: site.slug, name: f.name, phone: f.phone, email: f.email, address: f.address, note: f.note,
+        method: f.method, items: cart.items.map((x) => ({ id: x.id, qty: x.qty })),
+      });
+      setReceipt(d);
+      cart.clear();
+      setView('done');
+    } catch (e2) { setError(e2.message); } finally { setBusy(false); }
+  };
+
+  const close = () => { cart.setOpen(false); if (view === 'done') { setView('cart'); setReceipt(null); setF({ name: '', phone: '', email: '', address: '', note: '', method: '' }); } };
+
+  return (
+    <div onMouseDown={close} style={{ position: 'fixed', inset: 0, zIndex: 95, background: 'rgba(10,12,18,0.55)' }}>
+      <div onMouseDown={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 'min(430px, 96vw)', background: '#fff', color: '#14161a', boxShadow: '-24px 0 70px rgba(0,0,0,0.35)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #ececef' }}>
+          <strong style={{ fontSize: 15.5 }}>{view === 'done' ? 'Order placed' : view === 'checkout' ? 'Checkout' : 'Your cart'}</strong>
+          <button onClick={close} aria-label="Close cart" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5c5f66', padding: 4 }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+          {view === 'cart' && (
+            cart.items.length === 0 ? (
+              <p style={{ fontSize: 14, color: '#5c5f66', textAlign: 'center', marginTop: 40 }}>Your cart is empty — add something you like.</p>
+            ) : cart.items.map((x) => (
+              <div key={x.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f2' }}>
+                {x.imageUrl
+                  ? <img src={x.imageUrl} alt="" style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                  : <div style={{ width: 52, height: 52, borderRadius: 8, background: '#f2f2f4', flexShrink: 0 }} />}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.name}</div>
+                  <div style={{ fontSize: 12.5, color: '#5c5f66', marginTop: 2 }}>{fmtN(x.price)}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button onClick={() => cart.setQty(x.id, x.qty - 1)} style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #dcdce0', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>−</button>
+                  <span style={{ width: 22, textAlign: 'center', fontSize: 13.5, fontWeight: 650 }}>{x.qty}</span>
+                  <button onClick={() => cart.setQty(x.id, x.qty + 1)} style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #dcdce0', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>+</button>
+                </div>
+              </div>
+            ))
+          )}
+
+          {view === 'checkout' && (
+            <form onSubmit={placeOrder} id="co-checkout">
+              <div style={{ marginBottom: 10 }}><span style={label}>Your name *</span><input style={input} value={f.name} onChange={(e) => set('name', e.target.value)} required autoFocus /></div>
+              <div style={{ marginBottom: 10 }}><span style={label}>Phone / WhatsApp *</span><input style={input} value={f.phone} onChange={(e) => set('phone', e.target.value)} required placeholder="0801 234 5678" /></div>
+              <div style={{ marginBottom: 10 }}><span style={label}>Delivery address</span><textarea style={{ ...input, resize: 'vertical' }} rows={2} value={f.address} onChange={(e) => set('address', e.target.value)} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                <div><span style={label}>Email</span><input style={input} type="email" value={f.email} onChange={(e) => set('email', e.target.value)} /></div>
+                <div><span style={label}>Note to the store</span><input style={input} value={f.note} onChange={(e) => set('note', e.target.value)} /></div>
+              </div>
+              <span style={{ ...label, marginBottom: 8 }}>How will you pay? *</span>
+              {methods.map(([key, title, desc]) => (
+                <label key={key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', border: `1.5px solid ${f.method === key ? 'var(--site-accent, #FF5B1F)' : '#e2e2e6'}`, borderRadius: 10, padding: '12px 14px', marginBottom: 8, cursor: 'pointer' }}>
+                  <input type="radio" name="method" checked={f.method === key} onChange={() => set('method', key)} style={{ marginTop: 3 }} />
+                  <span>
+                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700 }}>{title}</span>
+                    <span style={{ display: 'block', fontSize: 12, color: '#5c5f66', marginTop: 2 }}>{desc}</span>
+                  </span>
+                </label>
+              ))}
+              {methods.length === 0 && <p style={{ fontSize: 13, color: '#5c5f66' }}>This store takes orders on WhatsApp — use the button below.</p>}
+              {error && <p style={{ color: '#c0392b', fontSize: 13, margin: '8px 0 0' }}>{error}</p>}
+            </form>
+          )}
+
+          {view === 'done' && receipt && (
+            <div>
+              <div style={{ textAlign: 'center', padding: '10px 0 18px' }}>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1a7a3e" strokeWidth="2" strokeLinecap="round" style={{ margin: '0 auto 10px', display: 'block' }}><circle cx="12" cy="12" r="9.5" /><path d="M8 12.5l2.7 2.7L16 9.5" /></svg>
+                <div style={{ fontSize: 17, fontWeight: 750 }}>Order {receipt.orderNo}</div>
+                <div style={{ fontSize: 13.5, color: '#5c5f66', marginTop: 4 }}>Total: <strong style={{ color: '#14161a' }}>{fmtN(receipt.total)}</strong></div>
+              </div>
+              {receipt.method === 'transfer' && receipt.bank && (
+                <div style={{ border: '1px solid #e2e2e6', borderRadius: 12, padding: 16, marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#5c5f66', marginBottom: 10 }}>Pay by transfer</div>
+                  {receipt.bank.accountNumber ? (
+                    <>
+                      <div style={{ fontSize: 14, lineHeight: 1.9 }}>
+                        <div><span style={{ color: '#5c5f66' }}>Bank:</span> <strong>{receipt.bank.bankName || '—'}</strong></div>
+                        <div><span style={{ color: '#5c5f66' }}>Account name:</span> <strong>{receipt.bank.accountName || '—'}</strong></div>
+                        <div><span style={{ color: '#5c5f66' }}>Account number:</span> <strong style={{ fontSize: 16, letterSpacing: '.04em' }}>{receipt.bank.accountNumber}</strong></div>
+                        <div><span style={{ color: '#5c5f66' }}>Amount:</span> <strong>{fmtN(receipt.total)}</strong></div>
+                      </div>
+                      {receipt.bank.note && <p style={{ fontSize: 12.5, color: '#5c5f66', margin: '10px 0 0' }}>{receipt.bank.note}</p>}
+                    </>
+                  ) : (
+                    <p style={{ fontSize: 13.5, color: '#5c5f66', margin: 0 }}>The store will send you their account details on WhatsApp or by phone.</p>
+                  )}
+                </div>
+              )}
+              {receipt.method === 'cod' && (
+                <p style={{ fontSize: 13.5, color: '#5c5f66', lineHeight: 1.65, border: '1px solid #e2e2e6', borderRadius: 12, padding: 16, marginBottom: 14 }}>
+                  You'll pay when your order arrives. The store will call <strong>{f.phone}</strong> to confirm delivery.
+                </p>
+              )}
+              {waDigits && (
+                <a target="_blank" rel="noreferrer"
+                  href={`https://wa.me/${waDigits}?text=${encodeURIComponent(`Hello ${site.siteName || site.orgName}, I just placed order ${receipt.orderNo} for ${fmtN(receipt.total)}${receipt.method === 'transfer' ? ' — I will send my transfer proof here.' : ' (pay on delivery).'}`)}`}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#1FAF54', color: '#fff', borderRadius: 10, padding: '13px 0', fontWeight: 700, fontSize: 14, textDecoration: 'none' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.2 14.2c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1-3-.9-5-3.6-5.6-4.5-.5-.8-1-1.9-1-2.9 0-1 .5-1.5.7-1.7.3-.3.9-.3 1.1-.2.2 0 .5.1.7.6l.7 1.7c.1.2 0 .5-.1.6l-.5.6c-.1.2-.2.3 0 .6.5.8 1.6 2 3 2.6.3.1.5.1.7-.1l.7-.9c.2-.2.4-.2.6-.1l1.8.8c.3.2.5.3.5.5s0 .8-.2 1.3z"/></svg>
+                  {receipt.method === 'transfer' ? 'Send payment proof on WhatsApp' : 'Confirm your order on WhatsApp'}
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+
+        {view !== 'done' && cart.items.length > 0 && (
+          <div style={{ borderTop: '1px solid #ececef', padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14.5, marginBottom: 12 }}>
+              <span style={{ color: '#5c5f66' }}>Total</span>
+              <strong>{fmtN(cart.total)}</strong>
+            </div>
+            {view === 'cart' ? (
+              <button onClick={() => setView('checkout')} style={{ ...btnStyle(v), width: '100%', textAlign: 'center', border: 'none' }}>Checkout</button>
+            ) : (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setView('cart')} style={{ ...btnStyle(v, false), color: '#14161a', flex: '0 0 auto' }}>Back</button>
+                <button form="co-checkout" disabled={busy} style={{ ...btnStyle(v), flex: 1, textAlign: 'center', border: 'none', opacity: busy ? 0.7 : 1 }}>{busy ? 'Placing order…' : `Place order · ${fmtN(cart.total)}`}</button>
+              </div>
+            )}
+          </div>
+        )}
+        {view === 'done' && (
+          <div style={{ borderTop: '1px solid #ececef', padding: 18 }}>
+            <button onClick={close} style={{ ...btnStyle(v, false), width: '100%', textAlign: 'center', color: '#14161a' }}>Continue shopping</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---- products (with cart + CRM enquiry + WhatsApp order) ---------------------- */
 function ProductsSection({ c, site, v }) {
+  const cart = useContext(CartCtx); // present on store sites; null elsewhere → Enquire fallback
   const [enquire, setEnquire] = useState(null); // product | null
   const products = (site.products || []).slice(0, c.limit > 0 ? c.limit : undefined);
   const waDigits = (site.contactWhatsapp || '').replace(/[^0-9]/g, '');
@@ -247,13 +455,19 @@ function ProductsSection({ c, site, v }) {
                   : <div style={{ color: v.card === 'minimal' ? 'var(--site-muted)' : 'var(--site-accent)', fontWeight: v.card === 'minimal' ? 500 : 700, marginTop: 5, fontSize: 13.5 }}>{money(p.price)}</div>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button onClick={() => setEnquire(p)} style={{ ...btnStyle(v, false), padding: '8px 14px', fontSize: 12.5, flex: 1, textAlign: 'center', color: 'var(--site-accent)', borderColor: 'var(--site-accent)' }}>
-                  Enquire
-                </button>
+                {cart ? (
+                  <button onClick={() => cart.add(p)} style={{ ...btnStyle(v), padding: '9px 14px', fontSize: 12.5, flex: 1, textAlign: 'center', border: 'none' }}>
+                    Add to cart
+                  </button>
+                ) : (
+                  <button onClick={() => setEnquire(p)} style={{ ...btnStyle(v, false), padding: '8px 14px', fontSize: 12.5, flex: 1, textAlign: 'center', color: 'var(--site-accent)', borderColor: 'var(--site-accent)' }}>
+                    Enquire
+                  </button>
+                )}
                 {waDigits && (
                   <a target="_blank" rel="noreferrer" title="Order on WhatsApp"
                     href={`https://wa.me/${waDigits}?text=${encodeURIComponent(`Hello ${site.siteName || site.orgName}, I want to order: ${p.name}${p.price != null ? ` (${money(p.price)})` : ''}`)}`}
-                    style={{ ...btnStyle(v), padding: '8px 12px', fontSize: 12.5, background: '#1FAF54', display: 'inline-flex', alignItems: 'center' }}>
+                    style={{ ...btnStyle(v), padding: '8px 12px', fontSize: 12.5, background: '#1FAF54', display: 'inline-flex', alignItems: 'center', border: 'none' }}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.2 14.2c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1-3-.9-5-3.6-5.6-4.5-.5-.8-1-1.9-1-2.9 0-1 .5-1.5.7-1.7.3-.3.9-.3 1.1-.2.2 0 .5.1.7.6l.7 1.7c.1.2 0 .5-.1.6l-.5.6c-.1.2-.2.3 0 .6.5.8 1.6 2 3 2.6.3.1.5.1.7-.1l.7-.9c.2-.2.4-.2.6-.1l1.8.8c.3.2.5.3.5.5s0 .8-.2 1.3z"/></svg>
                   </a>
                 )}
@@ -549,27 +763,30 @@ function EcommerceSite({ data, activeSlug, setActiveSlug }) {
   const page = data.pages.find((p) => p.slug === activeSlug) || data.pages.find((p) => p.is_home) || data.pages[0];
   const shop = data.pages.find((p) => p.slug === 'shop');
   return (
-    <div style={{ ...vars, background: 'var(--site-bg)', color: 'var(--site-fg)', minHeight: '100vh', fontFamily: 'var(--site-font)' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: v.navCaps ? '22px 28px' : '16px 24px', borderBottom: '1px solid var(--site-line)', flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700, fontSize: v.navCaps ? 15 : 17, ...(v.navCaps ? { letterSpacing: '.22em', textTransform: 'uppercase' } : {}) }}>
-          {data.logoUrl && <img src={data.logoUrl} alt="" style={{ width: 30, height: 30, borderRadius: v.card === 'minimal' ? 2 : 6, objectFit: 'cover' }} />}
-          {data.siteName || data.orgName}
-        </div>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: v.navCaps ? 26 : 18, flexWrap: 'wrap' }}>
-          {data.pages.filter((p) => p.slug !== 'shop').map((p) => (
-            <a key={p.slug} href={`#${p.slug}`} onClick={(e) => { e.preventDefault(); setActiveSlug(p.slug); }} style={navLink(v, page?.slug === p.slug)}>{p.title}</a>
-          ))}
-          {shop && (
-            <a href="#shop" onClick={(e) => { e.preventDefault(); setActiveSlug('shop'); }}
-              style={{ ...btnStyle(v), padding: '8px 18px', fontSize: v.navCaps ? 11.5 : 13, fontWeight: 700 }}>
-              Shop now
-            </a>
-          )}
-        </nav>
-      </header>
-      {page && <PageBody page={page} site={data} v={v} />}
-      <SiteFooter site={data} />
-    </div>
+    <CartProvider slug={data.slug}>
+      <div style={{ ...vars, background: 'var(--site-bg)', color: 'var(--site-fg)', minHeight: '100vh', fontFamily: 'var(--site-font)' }}>
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: v.navCaps ? '22px 28px' : '16px 24px', borderBottom: '1px solid var(--site-line)', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700, fontSize: v.navCaps ? 15 : 17, ...(v.navCaps ? { letterSpacing: '.22em', textTransform: 'uppercase' } : {}) }}>
+            {data.logoUrl && <img src={data.logoUrl} alt="" style={{ width: 30, height: 30, borderRadius: v.card === 'minimal' ? 2 : 6, objectFit: 'cover' }} />}
+            {data.siteName || data.orgName}
+          </div>
+          <nav style={{ display: 'flex', alignItems: 'center', gap: v.navCaps ? 26 : 18, flexWrap: 'wrap' }}>
+            {data.pages.filter((p) => p.slug !== 'shop').map((p) => (
+              <a key={p.slug} href={`#${p.slug}`} onClick={(e) => { e.preventDefault(); setActiveSlug(p.slug); }} style={navLink(v, page?.slug === p.slug)}>{p.title}</a>
+            ))}
+            {shop && (
+              <a href="#shop" onClick={(e) => { e.preventDefault(); setActiveSlug('shop'); }} style={navLink(v, page?.slug === 'shop')}>
+                Shop
+              </a>
+            )}
+            <CartButton v={v} />
+          </nav>
+        </header>
+        {page && <PageBody page={page} site={data} v={v} />}
+        <SiteFooter site={data} />
+        <CartDrawer site={data} v={v} />
+      </div>
+    </CartProvider>
   );
 }
 

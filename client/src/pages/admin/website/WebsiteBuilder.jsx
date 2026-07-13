@@ -484,6 +484,77 @@ function ShareEmbedPanel({ orgSlug }) {
   );
 }
 
+/* ---- Orders tab — checkout orders from the store, worked like an inbox ------- */
+const ORDER_STATUS = { new: 'New', confirmed: 'Confirmed', fulfilled: 'Fulfilled', cancelled: 'Cancelled' };
+const ORDER_TINT = { new: '#B45309', confirmed: '#1D4ED8', fulfilled: '#166534', cancelled: '#6B7280' };
+
+function OrdersTab({ orgId, flash }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    W.getOrders(orgId).then(setOrders).catch((e) => flash(e.message, true)).finally(() => setLoading(false));
+  }, [orgId]); // eslint-disable-line
+
+  const setStatus = async (o, status) => {
+    try {
+      const saved = await W.updateOrderStatus(o.id, status);
+      setOrders((s) => s.map((x) => (x.id === o.id ? saved : x)));
+      flash(`Order ${o.order_no} marked ${ORDER_STATUS[status].toLowerCase()}.`);
+    } catch (e) { flash(e.message, true); }
+  };
+
+  if (loading) return <div className="suite-loading"><div className="boot-spinner" /></div>;
+
+  const naira = (n) => `₦${Number(n).toLocaleString('en-NG')}`;
+  const awaiting = orders.filter((o) => o.status === 'new').length;
+
+  return (
+    <div style={{ maxWidth: 860 }}>
+      <p className="muted" style={{ fontSize: 12.5, margin: '0 0 16px' }}>
+        {orders.length} order{orders.length === 1 ? '' : 's'}{awaiting > 0 && ` · ${awaiting} awaiting confirmation`}.
+        Transfer orders show the customer your account details from Settings → Getting paid; confirm once the money lands.
+      </p>
+      {orders.length === 0 && (
+        <p className="muted" style={{ fontSize: 13.5 }}>No orders yet — they'll appear here the moment a customer checks out on your store.</p>
+      )}
+      {orders.map((o) => (
+        <div key={o.id} style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 16, marginBottom: 12, background: 'var(--surface)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+            <strong style={{ fontSize: 14 }}>{o.order_no}</strong>
+            <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 100, background: `${ORDER_TINT[o.status]}18`, color: ORDER_TINT[o.status] }}>{ORDER_STATUS[o.status]}</span>
+            <span style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{o.payment_method === 'transfer' ? 'Bank transfer' : 'Pay on delivery'}</span>
+            <span style={{ flex: 1 }} />
+            <strong style={{ fontSize: 14.5 }}>{naira(o.total_naira)}</strong>
+          </div>
+          <div style={{ fontSize: 13, marginBottom: 6 }}>
+            <strong>{o.customer_name}</strong>
+            <span className="muted" style={{ marginLeft: 10 }}>{o.phone}</span>
+            {o.email && <span className="muted" style={{ marginLeft: 10 }}>{o.email}</span>}
+          </div>
+          {o.address && <div className="muted" style={{ fontSize: 12.5, marginBottom: 6 }}>Deliver to: {o.address}</div>}
+          <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
+            {(o.items || []).map((it) => `${it.qty}× ${it.name}`).join(' · ')}
+            {o.note && <em style={{ display: 'block', marginTop: 4 }}>"{o.note}"</em>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <a className="btn btn-ghost" style={{ fontSize: 12.5, padding: '6px 14px' }} target="_blank" rel="noreferrer"
+              href={`https://wa.me/${o.phone.replace(/[^0-9]/g, '').replace(/^0/, '234')}?text=${encodeURIComponent(`Hello ${o.customer_name.split(' ')[0]}, about your order ${o.order_no} — `)}`}>
+              WhatsApp customer
+            </a>
+            {o.status === 'new' && <button className="btn btn-primary" style={{ fontSize: 12.5, padding: '6px 14px' }} onClick={() => setStatus(o, 'confirmed')}>Confirm payment/order</button>}
+            {o.status === 'confirmed' && <button className="btn btn-primary" style={{ fontSize: 12.5, padding: '6px 14px' }} onClick={() => setStatus(o, 'fulfilled')}>Mark fulfilled</button>}
+            {(o.status === 'new' || o.status === 'confirmed') && (
+              <button className="btn btn-ghost" style={{ fontSize: 12.5, padding: '6px 14px', color: '#a4262c' }} onClick={() => setStatus(o, 'cancelled')}>Cancel</button>
+            )}
+            <span className="muted" style={{ fontSize: 11.5, marginLeft: 'auto' }}>{new Date(o.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ---- Insights tab — the site's own traffic + the leads it produced ---------- */
 const COUNTRY_NAMES = { NG: 'Nigeria', GH: 'Ghana', KE: 'Kenya', ZA: 'South Africa', EG: 'Egypt', GB: 'United Kingdom', US: 'United States', XX: 'Unknown' };
 
@@ -517,6 +588,7 @@ function InsightsTab({ orgId, flash }) {
         <div style={tile}><div style={tileLabel}>Visits, 7 days</div><div style={tileVal}>{within(24 * 7)}</div></div>
         <div style={tile}><div style={tileLabel}>Visits, 30 days</div><div style={tileVal}>{data.visits.length}</div></div>
         <div style={tile}><div style={tileLabel}>Messages &amp; leads</div><div style={{ ...tileVal, color: '#1a7a3e' }}>{data.leadCount}</div></div>
+        <div style={tile}><div style={tileLabel}>Orders</div><div style={{ ...tileVal, color: 'var(--brand, #FF5B1F)' }}>{data.orderCount}</div></div>
       </div>
       <p className="muted" style={{ fontSize: 12, margin: '0 0 24px' }}>
         Anonymous visit counts from your public site — no cookies, no visitor IDs. Messages &amp; leads counts everything the site
@@ -551,8 +623,13 @@ function InsightsTab({ orgId, flash }) {
 }
 
 /* ---- Settings tab ------------------------------------------------------------- */
-function SettingsTab({ site, orgId, orgSlug, onSave, flash }) {
-  const [f, setF] = useState({ siteName: site.site_name, tagline: site.tagline, contactEmail: site.contact_email, contactPhone: site.contact_phone, contactWhatsapp: site.contact_whatsapp, accentColor: site.accent_color, logoUrl: site.logo_url });
+function SettingsTab({ site, orgId, orgSlug, isStore, onSave, flash }) {
+  const [f, setF] = useState({
+    siteName: site.site_name, tagline: site.tagline, contactEmail: site.contact_email, contactPhone: site.contact_phone,
+    contactWhatsapp: site.contact_whatsapp, accentColor: site.accent_color, logoUrl: site.logo_url,
+    bankName: site.bank_name || '', bankAccountName: site.bank_account_name || '', bankAccountNumber: site.bank_account_number || '',
+    enableTransfer: site.enable_transfer !== false, enableCod: site.enable_cod !== false, paymentNote: site.payment_note || '',
+  });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
@@ -571,6 +648,8 @@ function SettingsTab({ site, orgId, orgSlug, onSave, flash }) {
       await W.updateSiteSettings(orgId, {
         site_name: f.siteName, tagline: f.tagline, contact_email: f.contactEmail, contact_phone: f.contactPhone,
         contact_whatsapp: f.contactWhatsapp, accent_color: f.accentColor, logo_url: f.logoUrl,
+        bank_name: f.bankName, bank_account_name: f.bankAccountName, bank_account_number: f.bankAccountNumber,
+        enable_transfer: f.enableTransfer, enable_cod: f.enableCod, payment_note: f.paymentNote,
       });
       flash('Saved.'); onSave();
     } catch (e) { flash(e.message, true); } finally { setSaving(false); }
@@ -598,6 +677,52 @@ function SettingsTab({ site, orgId, orgSlug, onSave, flash }) {
       <Field label="Contact email"><input className="input" type="email" value={f.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} /></Field>
       <Field label="Contact phone"><input className="input" value={f.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} /></Field>
       <Field label="WhatsApp"><input className="input" value={f.contactWhatsapp} onChange={(e) => set('contactWhatsapp', e.target.value)} placeholder="+234..." /></Field>
+
+      {isStore && (
+        <div style={{ margin: '26px 0 20px', paddingTop: 20, borderTop: '1px solid var(--line)' }}>
+          <h3 style={{ fontSize: 14, margin: '0 0 4px' }}>Getting paid</h3>
+          <p className="muted" style={{ fontSize: 12.5, margin: '0 0 14px', lineHeight: 1.6 }}>
+            Checkout doesn't need a card gateway. Customers order, then pay by transfer straight into your account
+            (shown to them after ordering) or on delivery — you confirm each order from the Orders tab.
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, marginBottom: 8, cursor: 'pointer' }}>
+            <input type="checkbox" checked={f.enableTransfer} onChange={(e) => set('enableTransfer', e.target.checked)} /> Accept bank transfer
+          </label>
+          {f.enableTransfer && (
+            <div style={{ margin: '4px 0 12px', paddingLeft: 22 }}>
+              <div className="form-grid">
+                <Field label="Bank"><input className="input" value={f.bankName} onChange={(e) => set('bankName', e.target.value)} placeholder="GTBank" /></Field>
+                <Field label="Account number"><input className="input" value={f.bankAccountNumber} onChange={(e) => set('bankAccountNumber', e.target.value)} placeholder="0123456789" /></Field>
+              </div>
+              <Field label="Account name"><input className="input" value={f.bankAccountName} onChange={(e) => set('bankAccountName', e.target.value)} placeholder="Your business name" /></Field>
+              <Field label="Note shown with your account details (optional)">
+                <input className="input" value={f.paymentNote} onChange={(e) => set('paymentNote', e.target.value)} placeholder="Use your order number as the transfer reference." />
+              </Field>
+            </div>
+          )}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, marginBottom: 16, cursor: 'pointer' }}>
+            <input type="checkbox" checked={f.enableCod} onChange={(e) => set('enableCod', e.target.checked)} /> Accept pay on delivery
+          </label>
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', border: '1px dashed var(--line)', borderRadius: 12, padding: 14 }}>
+            <span style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--surface-2)', display: 'grid', placeItems: 'center', flexShrink: 0, color: 'var(--text-2)' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="2.5" y="6" width="19" height="12" rx="2" /><path d="M2.5 10h19" /><path d="M6 15h4" /></svg>
+            </span>
+            <span>
+              <span style={{ fontWeight: 600, display: 'block', fontSize: 13.5 }}>Want card payments too?</span>
+              <span className="muted" style={{ fontSize: 12.5, display: 'block', margin: '2px 0 8px', lineHeight: 1.55 }}>
+                Most businesses don't have a payment gateway account — and that's fine. When you're ready, we'll set one up
+                with you in a one-on-one session and connect it to your store.
+              </span>
+              <a className="btn btn-ghost" style={{ fontSize: 12.5, padding: '6px 14px' }} target="_blank" rel="noreferrer"
+                href={`https://wa.me/2348148128551?text=${encodeURIComponent(`Hi Collarone, I'd like a 1-on-1 session to set up a payment gateway for my store (${orgSlug}).`)}`}>
+                Book a setup session on WhatsApp
+              </a>
+            </span>
+          </div>
+        </div>
+      )}
+
       <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? <span className="spinner" /> : 'Save settings'}</button>
       <ShareEmbedPanel orgSlug={orgSlug} />
     </div>
@@ -684,14 +809,16 @@ export default function AdminWebsite() {
             <button className={`lv-tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>Settings</button>
             <button className={`lv-tab ${tab === 'pages' ? 'active' : ''}`} onClick={() => setTab('pages')}>Pages & content</button>
             {category === 'ecommerce' && <button className={`lv-tab ${tab === 'products' ? 'active' : ''}`} onClick={() => setTab('products')}>Products</button>}
+            {category === 'ecommerce' && <button className={`lv-tab ${tab === 'orders' ? 'active' : ''}`} onClick={() => setTab('orders')}>Orders</button>}
             <button className={`lv-tab ${tab === 'insights' ? 'active' : ''}`} onClick={() => setTab('insights')}>Insights</button>
             <button className={`lv-tab ${tab === 'publish' ? 'active' : ''}`} onClick={() => setTab('publish')}>Publish</button>
             <a className="btn btn-ghost lv-apply" href={`/site/${org?.slug}?preview=1`} target="_blank" rel="noreferrer">Preview site</a>
           </div>
 
-          {tab === 'settings' && <SettingsTab site={site} orgId={org.id} orgSlug={org.slug} onSave={load} flash={flash} />}
+          {tab === 'settings' && <SettingsTab site={site} orgId={org.id} orgSlug={org.slug} isStore={category === 'ecommerce'} onSave={load} flash={flash} />}
           {tab === 'pages' && <PagesTab orgId={org.id} flash={flash} />}
           {tab === 'products' && category === 'ecommerce' && <ProductsTab orgId={org.id} flash={flash} />}
+          {tab === 'orders' && category === 'ecommerce' && <OrdersTab orgId={org.id} flash={flash} />}
           {tab === 'insights' && <InsightsTab orgId={org.id} flash={flash} />}
           {tab === 'publish' && (
             <div style={{ maxWidth: 480 }}>

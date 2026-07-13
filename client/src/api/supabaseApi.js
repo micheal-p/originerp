@@ -295,6 +295,16 @@ export async function supabaseApi(path, opts = {}) {
     return { ok: true };
   }
 
+  // ---- public storefront checkout (anon) ----
+  if (head === 'POST /site' && seg[1] === 'order') {
+    const { data, error } = await supabase.rpc('public_place_order', {
+      p_org_slug: body.orgSlug, p_name: body.name, p_phone: body.phone, p_email: body.email || '',
+      p_address: body.address || '', p_note: body.note || '', p_method: body.method, p_items: body.items,
+    });
+    if (error) fail(400, error.message);
+    return data;
+  }
+
   // ---- status: public health-check history (unauthenticated, anon role) ----
   if (head === 'GET /status' && seg[1] === 'checks') {
     const { data, error } = await supabase.from('status_checks').select('*').order('checked_at', { ascending: false }).limit(500);
