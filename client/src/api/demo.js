@@ -193,6 +193,7 @@ export async function demoApi(path, opts = {}) {
       bank: (body.method || 'transfer') === 'transfer' ? { bankName: 'GTBank', accountName: 'Demo Store Ltd', accountNumber: '0123456789', note: 'Demo mode — no real order was placed.' } : null };
   }
   if (route === 'POST /embed/lead') return { ok: true };
+  if (route === 'POST /contact') return { ok: true };
   if (route === 'GET /me/notices') return { notices: [] };
   if (/^POST \/notices\/.+\/dismiss$/.test(route)) return { ok: true };
 

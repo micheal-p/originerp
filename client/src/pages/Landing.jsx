@@ -683,7 +683,7 @@ export default function Landing() {
               <div className="cl-footer-h">Company</div>
               <a href="#about">About</a>
               <a href="/careers">Careers</a>
-              <a href="#contact">Contact us</a>
+              <Link to="/contact">Contact us</Link>
             </div>
             <div className="cl-footer-col">
               <div className="cl-footer-h">Legal</div>

@@ -269,6 +269,16 @@ export async function supabaseApi(path, opts = {}) {
     if (error) fail(400, error.message);
     return { promoCode: data };
   }
+  if (head === 'GET /platform' && seg[1] === 'contact-messages') {
+    const { data, error } = await supabase.from('platform_contact_messages').select('*').order('created_at', { ascending: false }).limit(300);
+    if (error) fail(error.code === '42501' ? 403 : 400, error.message);
+    return { messages: data };
+  }
+  if (head === 'POST /platform' && seg[1] === 'contact-messages' && seg[3] === 'reply') {
+    const { data, error } = await supabase.from('platform_contact_messages').update({ status: 'replied', replied_at: new Date().toISOString() }).eq('id', seg[2]).select().single();
+    if (error) fail(400, error.message);
+    return { message: data };
+  }
   if (head === 'GET /platform' && seg[1] === 'sites') {
     const { data, error } = await supabase.from('org_sites').select('org_id, site_name, theme_key, published');
     if (error) fail(error.code === '42501' ? 403 : 400, error.message);
@@ -2022,6 +2032,15 @@ export async function supabaseApi(path, opts = {}) {
   }
   if (method === 'DELETE' && seg[0] === 'documents' && seg[2] === 'permissions' && seg.length === 4) {
     const { error } = await supabase.from('document_permissions').delete().eq('document_id', seg[1]).eq('user_id', seg[3]);
+    if (error) fail(400, error.message);
+    return { ok: true };
+  }
+
+  if (head === 'POST /contact' && seg.length === 1) {
+    const { name, email, phone, company, message } = body;
+    const { error } = await supabase.rpc('public_submit_contact_message', {
+      p_name: name, p_email: email || '', p_phone: phone || '', p_company: company || '', p_message: message || '',
+    });
     if (error) fail(400, error.message);
     return { ok: true };
   }

@@ -19,6 +19,7 @@ import CareersIndex from './pages/careers/CareersIndex.jsx';
 import CareersApply from './pages/careers/CareersApply.jsx';
 import Terms from './pages/Terms.jsx';
 import Privacy from './pages/Privacy.jsx';
+import Contact from './pages/Contact.jsx';
 import Signup from './pages/Signup.jsx';
 import Status from './pages/Status.jsx';
 import EmbedContactForm from './pages/embed/EmbedContactForm.jsx';
@@ -82,6 +83,7 @@ export default function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
+      <Route path="/contact" element={<Contact />} />
       <Route path="/status" element={<Status />} />
       <Route path="/careers" element={<Navigate to="/careers/collarone" replace />} />
       <Route path="/careers/:orgSlug" element={<CareersIndex />} />

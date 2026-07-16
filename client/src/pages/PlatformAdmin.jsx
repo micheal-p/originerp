@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { apiGet, apiPost, apiPatch } from '../api/client.js';
 import { supabase } from '../lib/supabaseClient.js';
+import { waLink } from '../lib/whatsapp.js';
 import { FOUNDING_ORG_ID } from '../config/org.js';
 import PlatformShell from '../components/PlatformShell.jsx';
 import ThemeMockup from '../components/ThemeMockup.jsx';
@@ -34,6 +35,9 @@ const I = {
   chev: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>,
   check: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12l4 4 10-10" /></svg>,
   close: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>,
+  mail: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>,
+  chat: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 5h16v11H8l-4 4z" /></svg>,
+  phone: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.4c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z" /></svg>,
 };
 
 const glass = { background: 'rgba(20,22,30,0.55)', border: '1px solid rgba(244,241,234,0.10)', borderRadius: 16, backdropFilter: 'blur(14px)' };
@@ -87,6 +91,90 @@ function StatusWidget() {
       </div>
       <span style={{ fontSize: 12.5, color: 'rgba(244,241,234,0.4)' }}>Full status page →</span>
     </motion.a>
+  );
+}
+
+// Messages submitted via the public /contact page — a platform-level inbox,
+// separate from any tenant's own CRM inbox. Same reply pattern already used
+// there: real quick-action links (WhatsApp/email/call), mark-as-replied.
+// No automated sending exists anywhere in this codebase, so this doesn't
+// pretend to send anything — it just gets you to the real channel fast.
+function ContactMessagesPanel({ flash }) {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showReplied, setShowReplied] = useState(false);
+
+  const load = () => { apiGet('/platform/contact-messages').then((d) => setMessages(d.messages)).catch(() => {}).finally(() => setLoading(false)); };
+  useEffect(load, []);
+
+  const markReplied = async (m) => {
+    try { await apiPost(`/platform/contact-messages/${m.id}/reply`); setMessages((ms) => ms.map((x) => (x.id === m.id ? { ...x, status: 'replied', replied_at: new Date().toISOString() } : x))); }
+    catch (e) { flash(e.message, true); }
+  };
+
+  const newCount = messages.filter((m) => m.status === 'new').length;
+  const visible = showReplied ? messages : messages.filter((m) => m.status === 'new');
+
+  return (
+    <div style={{ marginBottom: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 700, letterSpacing: '.02em', margin: 0, color: '#F4F1EA', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {I.mail} MESSAGES{newCount > 0 && <span style={{ background: '#FF5B1F', color: '#fff', fontSize: 11, fontWeight: 700, borderRadius: 100, padding: '2px 8px' }}>{newCount} new</span>}
+        </h2>
+        <button onClick={() => setShowReplied((v) => !v)}
+          style={{ background: 'transparent', border: '1px solid rgba(244,241,234,0.2)', color: 'rgba(244,241,234,0.7)', borderRadius: 8, padding: '6px 13px', fontSize: 12, cursor: 'pointer' }}>
+          {showReplied ? 'Hide replied' : 'Show all'}
+        </button>
+      </div>
+
+      {loading && <p style={{ color: 'rgba(244,241,234,0.5)', fontSize: 13.5 }}>Loading…</p>}
+      {!loading && visible.length === 0 && (
+        <div style={{ ...glass, padding: 18, fontSize: 13, color: 'rgba(244,241,234,0.5)' }}>
+          {showReplied ? 'No messages yet.' : 'No new messages — you\'re all caught up.'}
+        </div>
+      )}
+      {visible.map((m) => (
+        <div key={m.id} style={{ ...glass, padding: '14px 18px', marginBottom: 8, opacity: m.status === 'replied' ? 0.6 : 1 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
+            <div>
+              <strong style={{ color: '#F4F1EA', fontSize: 14 }}>{m.name}</strong>
+              {m.company && <span style={{ color: 'rgba(244,241,234,0.45)', fontSize: 12.5 }}> · {m.company}</span>}
+              {m.status === 'new'
+                ? <span style={{ marginLeft: 8, background: 'rgba(255,91,31,0.15)', color: '#FF9457', fontSize: 10.5, fontWeight: 700, borderRadius: 100, padding: '2px 8px' }}>NEW</span>
+                : <span style={{ marginLeft: 8, background: 'rgba(127,214,127,0.15)', color: '#7fd67f', fontSize: 10.5, fontWeight: 700, borderRadius: 100, padding: '2px 8px' }}>REPLIED</span>}
+            </div>
+            <span style={{ fontSize: 11.5, color: 'rgba(244,241,234,0.4)' }}>{fmtDateTime(m.created_at)}</span>
+          </div>
+          <p style={{ fontSize: 13.5, color: 'rgba(244,241,234,0.75)', margin: '0 0 10px', lineHeight: 1.55 }}>{m.message}</p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {m.phone && (
+              <a href={waLink(m.phone)} target="_blank" rel="noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(127,214,127,0.12)', border: '1px solid rgba(127,214,127,0.3)', color: '#7fd67f', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                {I.chat} Reply on WhatsApp
+              </a>
+            )}
+            {m.email && (
+              <a href={`mailto:${m.email}?subject=${encodeURIComponent('Re: your message to Collarone')}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(127,178,255,0.12)', border: '1px solid rgba(127,178,255,0.3)', color: '#7fb2ff', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                {I.mail} Email
+              </a>
+            )}
+            {m.phone && (
+              <a href={`tel:+${waLink(m.phone).split('/').pop()}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(244,241,234,0.06)', border: '1px solid rgba(244,241,234,0.2)', color: 'rgba(244,241,234,0.7)', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                {I.phone} Call
+              </a>
+            )}
+            {m.status === 'new' && (
+              <button onClick={() => markReplied(m)}
+                style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid rgba(244,241,234,0.2)', color: 'rgba(244,241,234,0.6)', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+                Mark as replied
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -501,6 +589,8 @@ export default function PlatformAdmin() {
           ))}
         </div>
       )}
+
+      <ContactMessagesPanel flash={flash} />
 
       <PromoCodesPanel flash={flash} />
 
