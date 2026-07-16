@@ -3,6 +3,7 @@ import * as TD from './tradeDocsApi.js';
 import { getContacts } from '../crm/crmApi.js';
 import { getVendors } from '../procurement/procurementApi.js';
 import { getWarehouses, getItems } from '../inventory/inventoryApi.js';
+import { useAuth } from '../../auth/AuthContext.jsx';
 
 function Toast({ toast }) { if (!toast) return null; return <div className={`toast ${toast.isErr ? 'error' : ''}`}>{toast.msg}</div>; }
 function Field({ label, children }) { return <div className="field"><label>{label}</label>{children}</div>; }
@@ -184,14 +185,144 @@ function CreateModal({ docType, onClose, onSaved, flash }) {
   );
 }
 
-function PrintView({ doc, onClose }) {
+const TEMPLATE_CSS = `
+  .tdt-doc { --accent: #0A0E1A; font-family: Georgia, serif; }
+  .tdt-band { display: none; }
+  .tdt-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 4px; }
+  .tdt-logo { max-height: 56px; max-width: 180px; object-fit: contain; margin-bottom: 6px; }
+  .tdt-company { font-size: 18px; font-weight: 700; }
+  .tdt-tagline { font-size: 12px; font-style: italic; color: #6b7280; margin-top: 2px; }
+  .tdt-contactline { font-size: 12px; color: #6b7280; margin: 4px 0 10px; }
+  .tdt-doctitle { text-align: right; font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  .tdt-docno { font-size: 12px; color: #6b7280; font-family: monospace; margin-top: 2px; }
+  .tdt-rule { border: none; border-top: 2px solid #14171f; margin: 10px 0 14px; }
+  .tdt-sigblock { display: flex; justify-content: space-between; gap: 24px; margin-top: 32px; }
+  .tdt-sig { flex: 1; border-top: 1px solid #14171f; padding-top: 6px; font-size: 12px; }
+  .tdt-sig img { height: 40px; display: block; margin-bottom: 4px; mix-blend-mode: multiply; }
+  .tdt-signame { font-weight: 600; }
+  .tdt-sigtitle { color: #6b7280; font-style: italic; }
+  .tdt-sig-blank { color: #6b7280; }
+
+  .tdt-modern { font-family: -apple-system, Segoe UI, Roboto, sans-serif; }
+  .tdt-modern .tdt-header { border-left: 4px solid var(--accent); padding-left: 12px; }
+  .tdt-modern .tdt-rule { border-top: 1px solid #e2e2e2; }
+  .tdt-modern .tdt-doctitle { color: var(--accent); }
+
+  .tdt-bold { font-family: -apple-system, Segoe UI, Roboto, sans-serif; }
+  .tdt-bold .tdt-band { display: block; height: 10px; background: var(--accent); margin: -16px -16px 18px; border-radius: 3px 3px 0 0; }
+  .tdt-bold .tdt-doctitle { color: var(--accent); font-size: 20px; }
+  .tdt-bold .tdt-rule { border-top: 3px solid var(--accent); }
+
+  .tdt-minimal { font-family: -apple-system, Segoe UI, Roboto, sans-serif; }
+  .tdt-minimal .tdt-rule { border: none; margin: 6px 0 12px; }
+  .tdt-minimal .tdt-doctitle { font-weight: 400; letter-spacing: 0.02em; }
+  .tdt-minimal .tdt-docno, .tdt-minimal .table td { font-family: monospace; }
+
+  .tdt-corporate { font-family: -apple-system, Segoe UI, Roboto, sans-serif; }
+  .tdt-corporate .table th { background: #f3f4f6; }
+  .tdt-corporate .tdt-rule { border-top: 3px double #14171f; }
+
+  .tdt-elegant { font-family: Georgia, serif; }
+  .tdt-elegant .tdt-doctitle { font-style: italic; text-transform: none; letter-spacing: 0.02em; }
+  .tdt-elegant .tdt-rule { border-top: 1px solid var(--accent); }
+  .tdt-elegant .tdt-company { font-style: italic; }
+`;
+
+function SettingsModal({ orgId, settings, onClose, onSaved, flash }) {
+  const [f, setF] = useState({
+    companyName: settings?.company_name || '', address: settings?.address || '', tagline: settings?.tagline || '',
+    phone: settings?.phone || '', email: settings?.email || '', logoUrl: settings?.logo_url || '',
+    accentColor: settings?.accent_color || '#0A0E1A', signatureName: settings?.signature_name || '',
+    signatureTitle: settings?.signature_title || '', signatureUrl: settings?.signature_url || '',
+    templateKey: settings?.template_key || 'classic',
+  });
+  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState('');
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  const uploadLogo = async (file) => {
+    setUploading('logo');
+    try { set('logoUrl', await TD.uploadLogo(orgId, file)); } catch (e) { flash(e.message, true); } finally { setUploading(''); }
+  };
+  const uploadSig = async (file) => {
+    setUploading('sig');
+    try { set('signatureUrl', await TD.uploadSignatureImage(orgId, file)); } catch (e) { flash(e.message, true); } finally { setUploading(''); }
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try { const saved = await TD.saveSettings(f); flash('Letterhead saved.'); onSaved(saved); onClose(); }
+    catch (e2) { flash(e2.message, true); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onMouseDown={onClose}>
+      <div className="modal modal-wide" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h2>Letterhead settings</h2></div>
+        <form className="modal-body" onSubmit={submit}>
+          <div className="form-grid">
+            <Field label="Company name"><input className="input" value={f.companyName} onChange={(e) => set('companyName', e.target.value)} placeholder="Shown on every document" /></Field>
+            <Field label="Tagline"><input className="input" value={f.tagline} onChange={(e) => set('tagline', e.target.value)} /></Field>
+            <Field label="Address"><input className="input" value={f.address} onChange={(e) => set('address', e.target.value)} /></Field>
+            <Field label="Phone"><input className="input" value={f.phone} onChange={(e) => set('phone', e.target.value)} /></Field>
+            <Field label="Email"><input className="input" value={f.email} onChange={(e) => set('email', e.target.value)} /></Field>
+            <Field label="Accent colour"><input className="input" type="color" value={f.accentColor} onChange={(e) => set('accentColor', e.target.value)} style={{ height: 38, padding: 2 }} /></Field>
+          </div>
+
+          <Field label="Logo">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {f.logoUrl && <img src={f.logoUrl} alt="Logo" style={{ height: 40, objectFit: 'contain' }} />}
+              <input type="file" accept="image/*" disabled={uploading === 'logo'} onChange={(e) => e.target.files[0] && uploadLogo(e.target.files[0])} />
+              {uploading === 'logo' && <span className="spinner" />}
+            </div>
+          </Field>
+
+          <div className="form-grid">
+            <Field label="Signature name"><input className="input" value={f.signatureName} onChange={(e) => set('signatureName', e.target.value)} placeholder="e.g. Aniebiet Pius Nkanta" /></Field>
+            <Field label="Signature title"><input className="input" value={f.signatureTitle} onChange={(e) => set('signatureTitle', e.target.value)} placeholder="e.g. Founder" /></Field>
+          </div>
+          <Field label="Signature image">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {f.signatureUrl && <img src={f.signatureUrl} alt="Signature" style={{ height: 36, mixBlendMode: 'multiply' }} />}
+              <input type="file" accept="image/*" disabled={uploading === 'sig'} onChange={(e) => e.target.files[0] && uploadSig(e.target.files[0])} />
+              {uploading === 'sig' && <span className="spinner" />}
+            </div>
+          </Field>
+
+          <Field label="Template">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
+              {Object.entries(TD.TEMPLATES).map(([k, t]) => (
+                <label key={k} className="card" style={{ padding: 10, cursor: 'pointer', border: f.templateKey === k ? '2px solid var(--brand)' : undefined }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
+                    <input type="radio" name="template" checked={f.templateKey === k} onChange={() => set('templateKey', k)} /> {t.name}
+                  </div>
+                  <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{t.desc}</div>
+                </label>
+              ))}
+            </div>
+          </Field>
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" disabled={busy}>{busy ? <span className="spinner" /> : 'Save letterhead'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PrintView({ doc, settings, onClose }) {
   const meta = TD.DOC_TYPES[doc.doc_type];
+  const s = settings || {};
   return (
     <div className="modal-overlay" onMouseDown={onClose}>
       <div className="modal modal-wide" onMouseDown={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
         <div className="modal-head no-print"><h2>{meta.label} {doc.doc_no}</h2></div>
-        <div className="modal-body" id="td-print-area">
+        <div className="modal-body">
           <style>{`
+            ${TEMPLATE_CSS}
             @media print {
               body * { visibility: hidden; }
               #td-print-area, #td-print-area * { visibility: visible; }
@@ -199,41 +330,68 @@ function PrintView({ doc, onClose }) {
               .no-print { display: none !important; }
             }
           `}</style>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-            <div>
-              <div style={{ fontSize: 20, fontWeight: 700 }}>{meta.label}</div>
-              <div className="muted" style={{ fontSize: 13 }}>{doc.doc_no} · {TD.fmtDate(doc.created_at)}</div>
+          <div id="td-print-area" className={`tdt-doc tdt-${s.template_key || 'classic'}`} style={{ '--accent': s.accent_color || '#0A0E1A' }}>
+            <div className="tdt-band" />
+            <div className="tdt-header">
+              <div>
+                {s.logo_url && <img className="tdt-logo" src={s.logo_url} alt="" />}
+                <div className="tdt-company">{s.company_name || 'Your company'}</div>
+                {s.tagline && <div className="tdt-tagline">{s.tagline}</div>}
+              </div>
+              <div>
+                <div className="tdt-doctitle">{meta.label}</div>
+                <div className="tdt-docno">{doc.doc_no} · {TD.fmtDate(doc.created_at)}</div>
+                {doc.status && <div style={{ marginTop: 6, textAlign: 'right' }}><span className="badge">{TD.STATUS_LABELS[doc.status]}</span></div>}
+              </div>
             </div>
-            {doc.status && <span className="badge">{TD.STATUS_LABELS[doc.status]}</span>}
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: 600 }}>{doc.party_name}</div>
-            {doc.party_phone && <div className="muted" style={{ fontSize: 13 }}>{doc.party_phone}</div>}
-            {doc.party_email && <div className="muted" style={{ fontSize: 13 }}>{doc.party_email}</div>}
-            {doc.party_address && <div className="muted" style={{ fontSize: 13 }}>{doc.party_address}</div>}
-            {doc.due_date && <div className="muted" style={{ fontSize: 13 }}>Due {TD.fmtDate(doc.due_date)}</div>}
-            {doc.reference && <div className="muted" style={{ fontSize: 13 }}>Ref: {doc.reference}</div>}
-          </div>
-          <table className="table" style={{ marginBottom: 12 }}>
-            <thead><tr><th>Description</th><th style={{ width: 70 }}>Qty</th>{meta.hasVat && <><th style={{ width: 110 }}>Unit price</th><th style={{ width: 110 }}>Amount</th></>}</tr></thead>
-            <tbody>
-              {(doc.items || []).map((l, i) => (
-                <tr key={i}>
-                  <td>{l.description}</td>
-                  <td>{l.qty}</td>
-                  {meta.hasVat && <><td>{TD.money(l.unit_price)}</td><td>{TD.money((Number(l.qty) || 0) * (Number(l.unit_price) || 0))}</td></>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {meta.hasVat && (
-            <div style={{ textAlign: 'right', fontSize: 14 }}>
-              <div>Subtotal: {TD.money(doc.subtotal)}</div>
-              <div>VAT ({(doc.vat_rate * 100).toFixed(1)}%): {TD.money(doc.vat_amount)}</div>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>Total: {TD.money(doc.total)}</div>
+            {(s.address || s.phone || s.email) && (
+              <div className="tdt-contactline">{[s.address, s.phone, s.email].filter(Boolean).join(' · ')}</div>
+            )}
+            <hr className="tdt-rule" />
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 600 }}>{doc.party_name}</div>
+              {doc.party_phone && <div className="muted" style={{ fontSize: 13 }}>{doc.party_phone}</div>}
+              {doc.party_email && <div className="muted" style={{ fontSize: 13 }}>{doc.party_email}</div>}
+              {doc.party_address && <div className="muted" style={{ fontSize: 13 }}>{doc.party_address}</div>}
+              {doc.due_date && <div className="muted" style={{ fontSize: 13 }}>Due {TD.fmtDate(doc.due_date)}</div>}
+              {doc.reference && <div className="muted" style={{ fontSize: 13 }}>Ref: {doc.reference}</div>}
             </div>
-          )}
-          {doc.notes && <div className="muted" style={{ fontSize: 13, marginTop: 16 }}>{doc.notes}</div>}
+            <table className="table" style={{ marginBottom: 12 }}>
+              <thead><tr><th>Description</th><th style={{ width: 70 }}>Qty</th>{meta.hasVat && <><th style={{ width: 110 }}>Unit price</th><th style={{ width: 110 }}>Amount</th></>}</tr></thead>
+              <tbody>
+                {(doc.items || []).map((l, i) => (
+                  <tr key={i}>
+                    <td>{l.description}</td>
+                    <td>{l.qty}</td>
+                    {meta.hasVat && <><td>{TD.money(l.unit_price)}</td><td>{TD.money((Number(l.qty) || 0) * (Number(l.unit_price) || 0))}</td></>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {meta.hasVat && (
+              <div style={{ textAlign: 'right', fontSize: 14 }}>
+                <div>Subtotal: {TD.money(doc.subtotal)}</div>
+                <div>VAT ({(doc.vat_rate * 100).toFixed(1)}%): {TD.money(doc.vat_amount)}</div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>Total: {TD.money(doc.total)}</div>
+              </div>
+            )}
+            {doc.notes && <div className="muted" style={{ fontSize: 13, marginTop: 16 }}>{doc.notes}</div>}
+
+            <div className="tdt-sigblock">
+              <div className="tdt-sig">
+                {s.signature_url && <img src={s.signature_url} alt="" />}
+                <div className="tdt-signame">{s.signature_name || '_________________________'}</div>
+                {s.signature_title && <div className="tdt-sigtitle">{s.signature_title}</div>}
+              </div>
+              {meta.isStock && (
+                <div className="tdt-sig tdt-sig-blank">
+                  <div style={{ height: 40 }} />
+                  <div>{meta.stockDirection === 'in' ? 'Received by' : 'Released by'} (name &amp; signature)</div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         <div className="modal-actions no-print">
           <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
@@ -245,18 +403,25 @@ function PrintView({ doc, onClose }) {
 }
 
 export default function TradeDocsApp({ access }) {
+  const { user } = useAuth();
+  const orgId = user?.org?.id;
   const isManager = access?.role === 'manager';
   const [docs, setDocs] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('invoice');
   const [createOpen, setCreateOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [viewDoc, setViewDoc] = useState(null);
   const [toast, setToast] = useState(null);
   const flash = (msg, isErr = false) => { setToast({ msg, isErr }); setTimeout(() => setToast(null), 3000); };
 
   const load = useCallback(() => {
     setLoading(true);
-    TD.getDocuments().then(setDocs).catch((e) => flash(e.message, true)).finally(() => setLoading(false));
+    Promise.all([TD.getDocuments(), TD.getSettings()])
+      .then(([d, s]) => { setDocs(d); setSettings(s); })
+      .catch((e) => flash(e.message, true))
+      .finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -280,6 +445,7 @@ export default function TradeDocsApp({ access }) {
         {Object.entries(TD.DOC_TYPES).map(([k, m]) => (
           <button key={k} className={`lv-tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}>{m.label}</button>
         ))}
+        {isManager && <button className="btn btn-ghost" onClick={() => setSettingsOpen(true)}>Letterhead</button>}
         <button className="btn btn-primary lv-apply" onClick={() => setCreateOpen(true)}>New {meta.label}</button>
       </div>
 
@@ -320,7 +486,8 @@ export default function TradeDocsApp({ access }) {
       )}
 
       {createOpen && <CreateModal docType={tab} onClose={() => setCreateOpen(false)} onSaved={(d) => setDocs((ds) => [d, ...ds])} flash={flash} />}
-      {viewDoc && <PrintView doc={viewDoc} onClose={() => setViewDoc(null)} />}
+      {settingsOpen && <SettingsModal orgId={orgId} settings={settings} onClose={() => setSettingsOpen(false)} onSaved={setSettings} flash={flash} />}
+      {viewDoc && <PrintView doc={viewDoc} settings={settings} onClose={() => setViewDoc(null)} />}
       <Toast toast={toast} />
     </div>
   );

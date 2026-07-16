@@ -1544,12 +1544,13 @@ export async function supabaseApi(path, opts = {}) {
     return { items: data };
   }
   if (head === 'POST /inventory' && seg[1] === 'items') {
-    const { sku, name, unit, category, reorderLevel, notes } = body;
+    const { sku, name, unit, category, reorderLevel, notes, forSale, forStaffUse } = body;
     if (!sku?.trim() || !name?.trim()) fail(400, 'SKU and name are required.');
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('stock_items').insert({
       sku: sku.trim(), name: name.trim(), unit: unit || 'unit', category: category || '',
       reorder_level: reorderLevel || 0, notes: notes || '', created_by: user.id, org_id: await myOrgId(),
+      for_sale: forSale ?? true, for_staff_use: forStaffUse ?? false,
     }).select().single();
     if (error) fail(400, /unique/i.test(error.message) ? 'That SKU is already in use.' : error.message);
     return { item: data };
@@ -1612,6 +1613,37 @@ export async function supabaseApi(path, opts = {}) {
     return { reservation: full };
   }
 
+  // ---- inventory staff takeouts ----
+  const TAKEOUT_SELECT = '*, item:stock_items(id,name,sku,unit), warehouse:warehouses(id,name), staff:profiles!staff_id(id,name,email), approver:profiles!approved_by(id,name)';
+  if (head === 'GET /inventory' && seg[1] === 'takeouts') {
+    const { data, error } = await supabase.from('stock_takeouts').select(TAKEOUT_SELECT).order('created_at', { ascending: false }).limit(200);
+    if (error) fail(400, error.message);
+    return { takeouts: data };
+  }
+  if (head === 'POST /inventory' && seg[1] === 'takeouts' && seg.length === 2) {
+    const { itemId, warehouseId, quantity, staffId, notes } = body;
+    if (!itemId || !warehouseId || !quantity || !staffId) fail(400, 'Item, warehouse, quantity and staff member are required.');
+    const { data, error } = await supabase.rpc('create_takeout', { p_item_id: itemId, p_warehouse_id: warehouseId, p_quantity: quantity, p_staff_id: staffId, p_notes: notes || '' });
+    if (error) fail(400, error.message);
+    const { data: full, error: getErr } = await supabase.from('stock_takeouts').select(TAKEOUT_SELECT).eq('id', data.id).single();
+    if (getErr) fail(400, getErr.message);
+    return { takeout: full };
+  }
+  if (head === 'POST /inventory' && seg[1] === 'takeouts' && seg[3] === 'return') {
+    const { data, error } = await supabase.rpc('return_takeout', { p_id: seg[2], p_notes: body?.notes || '' });
+    if (error) fail(400, error.message);
+    const { data: full, error: getErr } = await supabase.from('stock_takeouts').select(TAKEOUT_SELECT).eq('id', data.id).single();
+    if (getErr) fail(400, getErr.message);
+    return { takeout: full };
+  }
+  if (head === 'POST /inventory' && seg[1] === 'takeouts' && seg[3] === 'cancel') {
+    const { data, error } = await supabase.rpc('cancel_takeout', { p_id: seg[2] });
+    if (error) fail(400, error.message);
+    const { data: full, error: getErr } = await supabase.from('stock_takeouts').select(TAKEOUT_SELECT).eq('id', data.id).single();
+    if (getErr) fail(400, getErr.message);
+    return { takeout: full };
+  }
+
   // ---- trade documents (invoice, receipt, GRN, SRP) ----
   const TRADE_DOC_SELECT = '*, contact:crm_contacts(id,name), vendor:vendors(id,name), warehouse:warehouses(id,name), author:profiles!created_by(id,name)';
   if (head === 'GET /trade-docs' && seg.length === 1) {
@@ -1646,6 +1678,24 @@ export async function supabaseApi(path, opts = {}) {
     const { error } = await supabase.from('trade_documents').delete().eq('id', seg[1]);
     if (error) fail(400, error.message);
     return { ok: true };
+  }
+
+  // ---- trade documents: letterhead settings ----
+  if (head === 'GET /trade-docs' && seg[1] === 'settings') {
+    const { data, error } = await supabase.from('trade_doc_settings').select('*').maybeSingle();
+    if (error) fail(400, error.message);
+    return { settings: data };
+  }
+  if (head === 'POST /trade-docs' && seg[1] === 'settings') {
+    const { companyName, address, tagline, phone, email, logoUrl, accentColor, signatureName, signatureTitle, signatureUrl, templateKey } = body;
+    const { data, error } = await supabase.rpc('upsert_trade_doc_settings', {
+      p_company_name: companyName || '', p_address: address || '', p_tagline: tagline || '',
+      p_phone: phone || '', p_email: email || '', p_logo_url: logoUrl || '', p_accent_color: accentColor || '#0A0E1A',
+      p_signature_name: signatureName || '', p_signature_title: signatureTitle || '', p_signature_url: signatureUrl || '',
+      p_template_key: templateKey || 'classic',
+    });
+    if (error) fail(400, error.message);
+    return { settings: data };
   }
 
   // ---- automation ----

@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiDelete } from '../../api/client.js';
+import * as D from '../documents/documentsApi.js';
 
 export const getWarehouses  = () => apiGet('/inventory/warehouses').then((d) => d.warehouses);
 export const createWarehouse = (body) => apiPost('/inventory/warehouses', body).then((d) => d.warehouse);
@@ -36,3 +37,71 @@ export const fmtDt = (d) => d
 export const fmtDate = (d) => d
   ? new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   : '—';
+
+// ---- Staff takeouts (not every item is for sale — some are checked out to
+// staff and returned, like a loaner asset). ----
+export const getTakeouts   = () => apiGet('/inventory/takeouts').then((d) => d.takeouts);
+export const createTakeout = (body) => apiPost('/inventory/takeouts', body).then((d) => d.takeout);
+export const returnTakeout = (id, notes) => apiPost(`/inventory/takeouts/${id}/return`, { notes }).then((d) => d.takeout);
+export const cancelTakeout = (id) => apiPost(`/inventory/takeouts/${id}/cancel`).then((d) => d.takeout);
+
+// Downloads immediately in the browser regardless of whether Documents
+// filing succeeds — "downloadable" shouldn't depend on a second suite grant.
+const downloadHtml = (html, filename) => {
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+};
+
+const buildTakeoutHtml = ({ kind, companyName, itemName, quantity, unit, staffName, approverName, date, notes }) => `<!doctype html><html><head><meta charset="utf-8"><title>${kind} — ${itemName}</title>
+<style>body{font-family:Georgia,serif;max-width:640px;margin:40px auto;line-height:1.6;color:#14161a;} h1{font-size:20px;} table{border-collapse:collapse;width:100%;margin:16px 0;} td{padding:6px 10px;border:1px solid #ccc;}</style>
+</head><body>
+<h1>${kind}</h1>
+<p><strong>${companyName}</strong></p>
+<table>
+  <tr><td>Item</td><td>${itemName}</td></tr>
+  <tr><td>Quantity</td><td>${quantity} ${unit}</td></tr>
+  <tr><td>Staff member</td><td>${staffName}</td></tr>
+  <tr><td>${kind === 'Return Form' ? 'Received by' : 'Approved by'}</td><td>${approverName}</td></tr>
+  <tr><td>Date</td><td>${date}</td></tr>
+  ${notes ? `<tr><td>Notes</td><td>${notes}</td></tr>` : ''}
+</table>
+<p>${kind === 'Return Form'
+    ? 'This confirms the item above has been returned to inventory.'
+    : 'This confirms the item above has been issued to the staff member named, to be returned when no longer needed.'}</p>
+</body></html>`;
+
+async function findOrCreateFolder(name) {
+  const folders = await D.getFolders();
+  const existing = folders.find((f) => f.name === name);
+  if (existing) return existing;
+  return D.createFolder({ name });
+}
+
+// Best-effort — files a copy into Documents (tagged to both the staff member
+// and the approving senior worker) but never blocks on it; the browser
+// download above is the one guarantee.
+const fileTakeoutDoc = async ({ kind, itemName, quantity, unit, staffId, staffName, approverId, approverName, notes }) => {
+  const html = buildTakeoutHtml({ kind, companyName: 'Collarone', itemName, quantity, unit, staffName, approverName, date: new Date().toLocaleDateString('en-GB'), notes });
+  const folder = await findOrCreateFolder('Staff Takeouts');
+  const safeName = itemName.replace(/[^a-zA-Z0-9]+/g, '-');
+  const stamp = new Date().toISOString().slice(0, 10);
+  const filename = `${kind.replace(' ', '-')}-${safeName}-${stamp}.html`;
+  const file = new File([html], filename, { type: 'text/html' });
+  const { path, size } = await D.uploadFile(file, 'takeouts/');
+  const doc = await D.createDocument({ name: `${kind} — ${itemName} — ${stamp}`, folderId: folder.id, filePath: path, fileSize: size, visibility: 'restricted' });
+  await Promise.allSettled([D.grantPermission(doc.id, staffId), D.grantPermission(doc.id, approverId)]);
+  return doc;
+};
+
+// Called from the UI right after create/return succeeds — downloads
+// immediately and files a copy, in that order, so the download never waits
+// on (or depends on) the filing step.
+export const generateTakeoutDoc = ({ kind, itemName, quantity, unit, staffId, staffName, approverId, approverName, notes }) => {
+  const html = buildTakeoutHtml({ kind, companyName: 'Collarone', itemName, quantity, unit, staffName, approverName, date: new Date().toLocaleDateString('en-GB'), notes });
+  const safeName = itemName.replace(/[^a-zA-Z0-9]+/g, '-');
+  downloadHtml(html, `${kind.replace(' ', '-')}-${safeName}.html`);
+  fileTakeoutDoc({ kind, itemName, quantity, unit, staffId, staffName, approverId, approverName, notes }).catch(() => {});
+};

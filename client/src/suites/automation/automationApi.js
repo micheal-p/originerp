@@ -15,11 +15,17 @@ export const AUTOMATIONS = [
   {
     key: 'overdue_invoice_reminder', name: 'Overdue invoice reminder', suite: 'Trade Documents',
     desc: 'Flags issued invoices past their due date so they don’t get forgotten.',
-    configFields: [{ key: 'graceDays', label: 'Grace period (days)', type: 'number', default: 3 }],
+    configFields: [
+      { key: 'graceDays', label: 'Grace period (days)', type: 'number', default: 3 },
+      { key: 'useAI', label: 'Draft the follow-up message with AI', type: 'checkbox', default: false, hint: 'Adds a drafted WhatsApp-style reminder to each follow-up task (OpenAI Batch — results land the next day, a human still sends it).' },
+    ],
   },
   {
     key: 'new_lead_auto_task', name: 'New lead follow-up', suite: 'CRM',
     desc: 'Auto-creates a "Follow up with…" task for new contacts so no lead sits untouched.',
+    configFields: [
+      { key: 'useAI', label: 'Draft the follow-up message with AI', type: 'checkbox', default: false, hint: 'Adds a drafted WhatsApp-style opener to each follow-up task (OpenAI Batch — results land the next day, a human still sends it).' },
+    ],
   },
   {
     key: 'task_overdue_alert', name: 'Overdue task alert', suite: 'Tasks',

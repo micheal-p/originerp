@@ -1,9 +1,29 @@
 import { apiGet, apiPost, apiPatch, apiDelete } from '../../api/client.js';
+import { uploadSiteImage } from '../../pages/admin/website/websiteApi.js';
 
 export const getDocuments = () => apiGet('/trade-docs').then((d) => d.documents);
 export const createDocument = (body) => apiPost('/trade-docs', body).then((d) => d.document);
 export const setDocumentStatus = (id, status) => apiPatch(`/trade-docs/${id}`, { status }).then((d) => d.document);
 export const deleteDocument = (id) => apiDelete(`/trade-docs/${id}`);
+
+// Letterhead: logo, address, tagline, signature, and a choice of template —
+// shown on every document this org generates.
+export const getSettings = () => apiGet('/trade-docs/settings').then((d) => d.settings);
+export const saveSettings = (body) => apiPost('/trade-docs/settings', body).then((d) => d.settings);
+
+// Reuses the site-assets bucket already wired up for the website builder —
+// same public-image job, no reason to stand up a second bucket for it.
+export const uploadLogo = (orgId, file) => uploadSiteImage(orgId, file, 'trade-docs/logo-');
+export const uploadSignatureImage = (orgId, file) => uploadSiteImage(orgId, file, 'trade-docs/signature-');
+
+export const TEMPLATES = {
+  classic:   { name: 'Classic',   desc: 'Serif, black & white, formal double rule.' },
+  modern:    { name: 'Modern',    desc: 'Clean sans-serif with a bold accent border.' },
+  bold:      { name: 'Bold',      desc: 'Full-width coloured header band.' },
+  minimal:   { name: 'Minimal',   desc: 'Ultra-plain, mono figures, lots of white space.' },
+  corporate: { name: 'Corporate', desc: 'Two-column header, shaded table rows.' },
+  elegant:   { name: 'Elegant',   desc: 'Serif italic accents, thin gold-toned rule.' },
+};
 
 export const DOC_TYPES = {
   invoice: { label: 'Invoice', prefix: 'INV', needsParty: true, hasVat: true, hasStatus: true, hasDueDate: true },

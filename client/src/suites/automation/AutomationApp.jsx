@@ -37,14 +37,21 @@ function AutomationCard({ def, setting, lastRun, isManager, onToggle, onConfigSa
       {def.configFields && enabled && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           {def.configFields.map((f) => (
-            <label key={f.key} style={{ fontSize: 12 }}>
-              {f.label}
-              <input
-                className="input" type={f.type} value={config[f.key]} disabled={!isManager}
-                onChange={(e) => setField(f.key, e.target.value)}
-                style={{ width: 80, marginTop: 2, display: 'block' }}
-              />
-            </label>
+            f.type === 'checkbox' ? (
+              <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500 }} title={f.hint}>
+                <input type="checkbox" checked={!!config[f.key]} disabled={!isManager} onChange={(e) => setField(f.key, e.target.checked)} />
+                {f.label}
+              </label>
+            ) : (
+              <label key={f.key} style={{ fontSize: 12 }}>
+                {f.label}
+                <input
+                  className="input" type={f.type} value={config[f.key]} disabled={!isManager}
+                  onChange={(e) => setField(f.key, e.target.value)}
+                  style={{ width: 80, marginTop: 2, display: 'block' }}
+                />
+              </label>
+            )
           ))}
           {isManager && dirty && (
             <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} disabled={busy} onClick={saveConfig}>

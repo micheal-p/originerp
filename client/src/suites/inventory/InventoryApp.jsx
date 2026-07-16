@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as INV from './inventoryApi.js';
+import { getStaff } from '../tasks/taskApi.js';
 
 function Toast({ toast }) { if (!toast) return null; return <div className={`toast ${toast.isErr ? 'error' : ''}`}>{toast.msg}</div>; }
 function Field({ label, children }) { return <div className="field"><label>{label}</label>{children}</div>; }
@@ -33,12 +34,13 @@ function WarehouseModal({ onClose, onSaved, flash }) {
 }
 
 function ItemModal({ onClose, onSaved, flash }) {
-  const [f, setF] = useState({ sku: '', name: '', unit: 'unit', category: '', reorderLevel: 0, notes: '' });
+  const [f, setF] = useState({ sku: '', name: '', unit: 'unit', category: '', reorderLevel: 0, notes: '', forSale: true, forStaffUse: false });
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const submit = async (e) => {
     e.preventDefault();
     if (!f.sku.trim() || !f.name.trim()) return flash('SKU and name are required.', true);
+    if (!f.forSale && !f.forStaffUse) return flash('Mark the item for sale, staff use, or both.', true);
     setBusy(true);
     try { const saved = await INV.createItem(f); flash('Item added.'); onSaved(saved); onClose(); }
     catch (e2) { flash(e2.message, true); } finally { setBusy(false); }
@@ -55,6 +57,16 @@ function ItemModal({ onClose, onSaved, flash }) {
             <Field label="Category"><input className="input" value={f.category} onChange={(e) => set('category', e.target.value)} /></Field>
             <Field label="Reorder level"><input className="input" type="number" value={f.reorderLevel} onChange={(e) => set('reorderLevel', e.target.value)} /></Field>
           </div>
+          <Field label="">
+            <div style={{ display: 'flex', gap: 16, fontSize: 13, fontWeight: 400 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={f.forSale} onChange={(e) => set('forSale', e.target.checked)} /> For sale
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={f.forStaffUse} onChange={(e) => set('forStaffUse', e.target.checked)} /> Staff can take out
+              </label>
+            </div>
+          </Field>
           <div className="modal-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button className="btn btn-primary" disabled={busy}>{busy ? <span className="spinner" /> : 'Add item'}</button>
@@ -165,26 +177,94 @@ function ReserveModal({ items, warehouses, onClose, onSaved, flash }) {
   );
 }
 
+function TakeoutModal({ items, warehouses, onClose, onSaved, flash }) {
+  const staffItems = items.filter((i) => i.for_staff_use);
+  const [staff, setStaff] = useState([]);
+  const [f, setF] = useState({ itemId: staffItems[0]?.id || '', warehouseId: warehouses[0]?.id || '', quantity: '', staffId: '', notes: '' });
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  useEffect(() => { getStaff().then(setStaff).catch(() => setStaff([])); }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!f.itemId || !f.warehouseId || !f.quantity || !f.staffId) return flash('Item, warehouse, quantity and staff member are required.', true);
+    setBusy(true);
+    try {
+      const saved = await INV.createTakeout(f);
+      const item = items.find((i) => i.id === f.itemId);
+      const member = staff.find((s) => s.id === f.staffId);
+      INV.generateTakeoutDoc({
+        kind: 'Takeout Request', itemName: item?.name || '', quantity: f.quantity, unit: item?.unit || '',
+        staffId: f.staffId, staffName: member?.name || '', approverId: saved.approved_by, approverName: saved.approver?.name || 'Approver', notes: f.notes,
+      });
+      flash('Takeout recorded — request form downloaded and filed to Documents.');
+      onSaved(saved);
+      onClose();
+    } catch (e2) { flash(e2.message, true); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onMouseDown={onClose}>
+      <div className="modal modal-wide" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h2>Tag a staff takeout</h2></div>
+        <form className="modal-body" onSubmit={submit}>
+          {staffItems.length === 0 ? (
+            <p className="muted" style={{ fontSize: 13 }}>No items are marked "Staff can take out" yet — edit an item to enable this.</p>
+          ) : (
+            <div className="form-grid">
+              <Field label="Item *">
+                <select className="select" value={f.itemId} onChange={(e) => set('itemId', e.target.value)} required>
+                  {staffItems.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.sku})</option>)}
+                </select>
+              </Field>
+              <Field label="Warehouse *">
+                <select className="select" value={f.warehouseId} onChange={(e) => set('warehouseId', e.target.value)} required>
+                  {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Quantity *"><input className="input" type="number" min="0.01" step="0.01" value={f.quantity} onChange={(e) => set('quantity', e.target.value)} required /></Field>
+              <Field label="Staff member *">
+                <select className="select" value={f.staffId} onChange={(e) => set('staffId', e.target.value)} required>
+                  <option value="">— select —</option>
+                  {staff.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.email})</option>)}
+                </select>
+              </Field>
+            </div>
+          )}
+          <Field label="Notes"><textarea className="input" rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} style={{ resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" disabled={busy || staffItems.length === 0}>{busy ? <span className="spinner" /> : 'Tag & issue'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function InventoryApp({ access }) {
   const isManager = access?.role === 'manager';
   const [items, setItems] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [movements, setMovements] = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [takeouts, setTakeouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('items');
   const [itemModal, setItemModal] = useState(false);
   const [whModal, setWhModal] = useState(false);
   const [moveModal, setMoveModal] = useState(false);
   const [reserveModal, setReserveModal] = useState(false);
+  const [takeoutModal, setTakeoutModal] = useState(false);
   const [toast, setToast] = useState(null);
   const flash = (msg, isErr = false) => { setToast({ msg, isErr }); setTimeout(() => setToast(null), 3000); };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [i, w, m, r] = await Promise.all([INV.getItems(), INV.getWarehouses(), INV.getMovements(), INV.getReservations()]);
-      setItems(i); setWarehouses(w); setMovements(m); setReservations(r);
+      const [i, w, m, r, t] = await Promise.all([INV.getItems(), INV.getWarehouses(), INV.getMovements(), INV.getReservations(), INV.getTakeouts()]);
+      setItems(i); setWarehouses(w); setMovements(m); setReservations(r); setTakeouts(t);
     } catch (e) { flash(e.message, true); } finally { setLoading(false); }
   }, []);
 
@@ -208,12 +288,32 @@ export default function InventoryApp({ access }) {
     catch (e) { flash(e.message, true); }
   };
 
+  const activeTakeouts = takeouts.filter((t) => t.status === 'approved');
+  const returnTakeout = async (t) => {
+    try {
+      const saved = await INV.returnTakeout(t.id);
+      INV.generateTakeoutDoc({
+        kind: 'Return Form', itemName: t.item?.name || '', quantity: t.quantity, unit: t.item?.unit || '',
+        staffId: t.staff_id, staffName: t.staff?.name || '', approverId: t.approved_by, approverName: t.approver?.name || 'Approver', notes: '',
+      });
+      flash('Returned — return form downloaded and filed to Documents.');
+      setTakeouts((ts) => ts.map((x) => (x.id === saved.id ? saved : x)));
+      load();
+    } catch (e) { flash(e.message, true); }
+  };
+  const cancelTakeout = async (t) => {
+    if (!confirm('Cancel this takeout? The stock returns to inventory.')) return;
+    try { const saved = await INV.cancelTakeout(t.id); flash('Takeout cancelled.'); setTakeouts((ts) => ts.map((x) => (x.id === saved.id ? saved : x))); load(); }
+    catch (e) { flash(e.message, true); }
+  };
+
   return (
     <div className="lv">
       <div className="lv-tabs">
         <button className={`lv-tab ${tab === 'items' ? 'active' : ''}`} onClick={() => setTab('items')}>Items</button>
         <button className={`lv-tab ${tab === 'movements' ? 'active' : ''}`} onClick={() => setTab('movements')}>Movements</button>
         <button className={`lv-tab ${tab === 'bookings' ? 'active' : ''}`} onClick={() => setTab('bookings')}>Bookings{heldReservations.length > 0 ? ` (${heldReservations.length})` : ''}</button>
+        <button className={`lv-tab ${tab === 'takeouts' ? 'active' : ''}`} onClick={() => setTab('takeouts')}>Staff Takeouts{activeTakeouts.length > 0 ? ` (${activeTakeouts.length})` : ''}</button>
         <button className={`lv-tab ${tab === 'warehouses' ? 'active' : ''}`} onClick={() => setTab('warehouses')}>Warehouses</button>
         {isManager && tab === 'items' && <button className="btn btn-primary lv-apply" onClick={() => setItemModal(true)}>Add item</button>}
         {isManager && tab === 'movements' && items.length > 0 && warehouses.length > 0 && (
@@ -221,6 +321,9 @@ export default function InventoryApp({ access }) {
         )}
         {isManager && tab === 'bookings' && items.length > 0 && warehouses.length > 0 && (
           <button className="btn btn-primary lv-apply" onClick={() => setReserveModal(true)}>Reserve stock</button>
+        )}
+        {isManager && tab === 'takeouts' && warehouses.length > 0 && (
+          <button className="btn btn-primary lv-apply" onClick={() => setTakeoutModal(true)}>Tag a takeout</button>
         )}
         {isManager && tab === 'warehouses' && <button className="btn btn-primary lv-apply" onClick={() => setWhModal(true)}>Add warehouse</button>}
       </div>
@@ -282,6 +385,33 @@ export default function InventoryApp({ access }) {
         </div>
       )}
 
+      {!loading && tab === 'takeouts' && (
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>Item</th><th>Staff</th><th>Qty</th><th>Tagged by</th><th>Status</th><th>When</th>{isManager && <th></th>}</tr></thead>
+            <tbody>
+              {takeouts.length === 0 && <tr><td colSpan={isManager ? 7 : 6} className="td-empty">No staff takeouts yet.</td></tr>}
+              {takeouts.map((t) => (
+                <tr key={t.id}>
+                  <td style={{ fontWeight: 500 }}>{t.item?.name}</td>
+                  <td className="muted" style={{ fontSize: 13 }}>{t.staff?.name}</td>
+                  <td className="muted" style={{ fontSize: 13 }}>{t.quantity}</td>
+                  <td className="muted" style={{ fontSize: 13 }}>{t.approver?.name}</td>
+                  <td><span className="badge">{t.status}</span></td>
+                  <td className="muted" style={{ fontSize: 13 }}>{INV.fmtDt(t.created_at)}</td>
+                  {isManager && (
+                    <td style={{ display: 'flex', gap: 6 }}>
+                      {t.status === 'approved' && <button className="iconbtn" onClick={() => returnTakeout(t)}>Return</button>}
+                      {t.status === 'approved' && <button className="iconbtn" onClick={() => cancelTakeout(t)}>Cancel</button>}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {!loading && tab === 'movements' && (
         <div className="table-wrap">
           <table className="table">
@@ -322,6 +452,7 @@ export default function InventoryApp({ access }) {
       {whModal && <WarehouseModal onClose={() => setWhModal(false)} onSaved={load} flash={flash} />}
       {moveModal && <MovementModal items={items} warehouses={warehouses} onClose={() => setMoveModal(false)} onSaved={load} flash={flash} />}
       {reserveModal && <ReserveModal items={items} warehouses={warehouses} onClose={() => setReserveModal(false)} onSaved={(r) => setReservations((rs) => [r, ...rs])} flash={flash} />}
+      {takeoutModal && <TakeoutModal items={items} warehouses={warehouses} onClose={() => setTakeoutModal(false)} onSaved={(t) => setTakeouts((ts) => [t, ...ts])} flash={flash} />}
       <Toast toast={toast} />
     </div>
   );
