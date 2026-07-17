@@ -6,6 +6,8 @@ import SuiteIcon from '../components/SuiteIcon.jsx';
 import shotHome from '../assets/shots/home.jpg';
 import shotTasks from '../assets/shots/tasks.jpg';
 import shotCrm from '../assets/shots/crm.jpg';
+import shotAnalytics from '../assets/shots/analytics.jpg';
+import shotPipeline from '../assets/shots/pipeline.jpg';
 import './Landing.css';
 
 const Mark = ({ size = 24 }) => (
@@ -31,6 +33,8 @@ const I = {
   chev: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>,
   expand: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" /></svg>,
   close: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 5l14 14M19 5L5 19" /></svg>,
+  menu: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>,
+  docSm: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>,
   arrowLeft: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4L7 12l8 8" /></svg>,
   arrowRight: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 4l8 8-8 8" /></svg>,
   check: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l5 5L19 7" /></svg>,
@@ -92,7 +96,7 @@ function Marquee({ items, dark }) {
 
 // The headline's moving part — cycles what "your whole business" actually
 // means, one suite at a time.
-const ROTATE_WORDS = ['whole business.', 'whole organization.', 'HR consultancy.', 'automations.', 'company inventory.'];
+const ROTATE_WORDS = ['whole business.', 'people & payroll.', 'company letters.', 'customers.', 'front desk.'];
 function RotatingWord() {
   const reduce = useReducedMotion();
   const [i, setI] = useState(0);
@@ -118,9 +122,11 @@ function RotatingWord() {
 }
 
 const GALLERY_SHOTS = [
-  { src: shotHome, url: 'collarone.app/home', caption: 'Your whole workspace, one login' },
-  { src: shotTasks, url: 'HR — Employee 360', caption: 'Everything about one employee, on one page' },
-  { src: shotCrm, url: 'HR — Letters', caption: 'Company letters on your letterhead, drafted by Collarone AI' },
+  { src: shotHome, url: 'collarone.app/home', title: 'One workspace', caption: 'Every suite your company runs, behind one login' },
+  { src: shotTasks, url: 'HR — Employee 360', title: 'Employee 360', caption: 'Pay, leave, assets, documents and reviews — one page per person' },
+  { src: shotCrm, url: 'HR — Letters', title: 'Letters + Collarone AI', caption: 'Drafted by AI on your letterhead, signed, referenced and filed' },
+  { src: shotAnalytics, url: 'HR — Analytics', title: 'HR analytics', caption: 'Headcount, attrition and statutory compliance at a glance' },
+  { src: shotPipeline, url: 'CRM — Pipeline', title: 'Deals pipeline', caption: 'Every deal staged and valued in naira, follow-ups on time' },
 ];
 
 const marqueeItems = ['Staff Directory', 'Leave Management', 'Task Tracking', 'Visitor Sign-in', 'Recruiting & Careers', 'Onboarding', 'Performance Reviews', 'Compliance Vault', 'Payroll — PAYE · Pension · NHF', 'Customer CRM', 'Website Builder', 'Invoicing & GRNs', 'Automation'];
@@ -222,7 +228,7 @@ const heroItem = {
 const modules = [
   {
     name: 'People & Operations', status: 'live',
-    desc: 'The daily running of a business — directory, leave, tasks, the front desk, time tracking, and automation that clears the busywork itself.',
+    desc: 'A directory with a full Employee 360 per person, company letters drafted by Collarone AI on your own letterhead, probation and disciplinary flows done properly, leave, tasks, the front desk and HR analytics.',
     suites: ['hr', 'leave', 'tasks', 'visitors', 'attendance', 'benefits', 'automation'],
   },
   {
@@ -232,7 +238,7 @@ const modules = [
   },
   {
     name: 'Customers & Growth', status: 'live',
-    desc: 'A CRM that treats a WhatsApp conversation as real activity, a public website, and everything else customer-facing.',
+    desc: 'A CRM with a naira-valued deals pipeline and WhatsApp-first activity log, plus projects, secure documents and your public website.',
     suites: ['crm', 'projects', 'documents'],
   },
 ];
@@ -246,6 +252,7 @@ const faqs = [
   { cat: 'Product', q: 'Is there a CRM for managing customers?', a: 'Yes — contacts, companies and a WhatsApp-first activity log, live on every tier. An embeddable contact-form widget lets you capture leads from your own website too, straight into your CRM.' },
   { cat: 'Product', q: 'Can I manage staff leave and recruiting on Collarone?', a: 'Yes — leave management, task tracking, visitor management, recruiting with a public careers page, onboarding/offboarding, performance reviews and a compliance vault are all live suites you can pick from day one.' },
   { cat: 'Security', q: 'Is my company’s data secure?', a: 'Every screen checks who’s allowed to see it before showing anything, verified role by role, and every company\'s data is isolated from every other company\'s at the database level — verified directly, not just assumed.' },
+  { cat: 'Product', q: 'Can Collarone write my company letters?', a: 'Yes. The HR Letters engine drafts confirmation, promotion, introduction, verification, query and warning letters — manually, from templates, or with Collarone AI — rendered live on your letterhead with your logo and authorized signature, auto-numbered, and filed into Documents automatically.' },
   { cat: 'Product', q: 'What about payroll?', a: 'Payroll is live — Nigerian PAYE, Pension, NHF and NSITF, configurable rate packs, and a Banking Wall so whoever liaises with your bank always knows what\'s new. It never touches your bank account directly — Collarone prepares the disbursement, your bank executes it.' },
   { cat: 'Product', q: 'Can I generate invoices and automate follow-ups?', a: 'Yes — Trade Documents generates sequential invoices, receipts, GRNs and stock release passes with your own logo, address and signature on a choice of 6 templates. Automation runs daily checks across your other suites — low-stock alerts, overdue-invoice reminders, new-lead follow-up tasks and more — and can optionally draft the follow-up message for you.' },
   { cat: 'General', q: 'How long does it take to get started?', a: 'During early access, we set up your space personally — reach out on WhatsApp or email and we’ll have your business live the same day.' },
@@ -269,6 +276,15 @@ export default function Landing() {
   const [scrolled, setScrolled] = useState(false);
   const [pastHero, setPastHero] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState(null);
+  const [navOpen, setNavOpen] = useState(false);
+  const [walkIdx, setWalkIdx] = useState(0);
+  const [walkAuto, setWalkAuto] = useState(true);
+  // Guided tour auto-advances until the visitor takes over.
+  useEffect(() => {
+    if (reduce || !walkAuto) return undefined;
+    const t = setInterval(() => setWalkIdx((x) => (x + 1) % GALLERY_SHOTS.length), 5000);
+    return () => clearInterval(t);
+  }, [reduce, walkAuto]);
   const [faqCat, setFaqCat] = useState('All');
   const visibleFaqs = faqCat === 'All' ? faqs : faqs.filter((f) => f.cat === faqCat);
   useEffect(() => {
@@ -316,7 +332,7 @@ export default function Landing() {
   return (
     <div className="cl">
       {!reduce && <motion.div className="cl-progress" style={{ scaleX: pageProgressSpring }} />}
-      <nav className={`cl-nav${pastHero ? ' cl-nav-scrolled' : ' cl-nav-ondark'}${scrolled && pastHero ? ' cl-nav-scrolled' : ''}`}>
+      <nav className={`cl-nav${(pastHero || navOpen) ? ' cl-nav-scrolled' : ' cl-nav-ondark'}${navOpen ? ' cl-nav-open' : ''}`}>
         <div className="cl-wrap">
           <a className="cl-brand" href="#top">
             <Mark size={24} />
@@ -327,10 +343,30 @@ export default function Landing() {
             <a className="cl-nl cl-hide-sm" href="#pricing">Pricing</a>
             <a className="cl-nl cl-hide-sm" href="#about">About</a>
             <a className="cl-nl cl-hide-sm" href="#faq">FAQ</a>
-            <Link className="cl-nl" to="/login">Sign in</Link>
+            <Link className="cl-nl cl-hide-sm" to="/login">Sign in</Link>
             <Link className="cl-btn cl-btn-primary cl-btn-sm" to="/signup">Get started</Link>
+            <button type="button" className="cl-burger" aria-label={navOpen ? 'Close menu' : 'Open menu'} aria-expanded={navOpen} onClick={() => setNavOpen((v) => !v)}>
+              {navOpen ? I.close : I.menu}
+            </button>
           </div>
         </div>
+        <AnimatePresence>
+          {navOpen && (
+            <motion.div
+              className="cl-mobile-menu"
+              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.18 }}
+            >
+              {[['#platform', 'Platform'], ['#gallery', 'Product tour'], ['#pricing', 'Pricing'], ['#about', 'About'], ['#faq', 'FAQ']].map(([href, label]) => (
+                <a key={href} className="cl-mm-link" href={href} onClick={() => setNavOpen(false)}>{label}</a>
+              ))}
+              <div className="cl-mm-actions">
+                <Link className="cl-btn cl-btn-ghost" to="/login" onClick={() => setNavOpen(false)}>Sign in</Link>
+                <Link className="cl-btn cl-btn-primary" to="/signup" onClick={() => setNavOpen(false)}>Get started</Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       <header
@@ -357,15 +393,15 @@ export default function Landing() {
           <motion.div className="cl-hero-inner" {...heroTextProps}>
             <motion.span {...heroItemVariants} className="cl-kicker"><span className="cl-dot" />Now onboarding early businesses</motion.span>
             <motion.h1 {...heroItemVariants}>Run your <RotatingWord /><br /><span className="cl-grad-word">One login.</span></motion.h1>
-            <motion.p {...heroItemVariants} className="cl-hero-sub">Your team, leave, tasks and front desk — proven and live today, with customers and your website joining the same space.</motion.p>
+            <motion.p {...heroItemVariants} className="cl-hero-sub">HR with an Employee 360 and AI-drafted company letters, payroll, CRM and your website — 16 live suites behind one login, priced in naira.</motion.p>
             <motion.div {...heroItemVariants} className="cl-hero-ctas">
               <Link className="cl-btn cl-btn-primary" to="/signup">Get started</Link>
               <a className="cl-btn cl-btn-ghost" href="#platform">See what's inside</a>
             </motion.div>
             <motion.div {...heroItemVariants} className="cl-chip-row">
-              <span className="cl-chip">{I.people}Manage your team</span>
+              <span className="cl-chip">{I.people}Employee 360</span>
+              <span className="cl-chip">{I.docSm}Letters with AI</span>
               <span className="cl-chip">{I.calendar}Track leave</span>
-              <span className="cl-chip">{I.chat}Manage customers</span>
               <span className="cl-chip">{I.globe}Build your website</span>
             </motion.div>
           </motion.div>
@@ -401,6 +437,18 @@ export default function Landing() {
       </header>
 
       <Marquee items={marqueeItems} dark />
+
+      <section className="cl-trust" aria-label="Platform facts">
+        <div className="cl-wrap cl-trust-row">
+          <span className="cl-trust-cell"><strong>16</strong> suites live</span>
+          <span className="cl-trust-dot" aria-hidden="true" />
+          <span className="cl-trust-cell">One isolated workspace per company</span>
+          <span className="cl-trust-dot" aria-hidden="true" />
+          <span className="cl-trust-cell">Role-checked on every screen</span>
+          <span className="cl-trust-dot" aria-hidden="true" />
+          <span className="cl-trust-cell">Priced in naira — rate locked at sign-up</span>
+        </div>
+      </section>
 
       <section className="cl-sec" id="capabilities">
         <div className="cl-wrap">
@@ -472,24 +520,44 @@ export default function Landing() {
       <section className="cl-sec cl-dark" id="gallery">
         <div className="cl-wrap">
           <Reveal className="cl-sec-head">
-            <p className="cl-eyebrow">See it, don't just take our word for it</p>
+            <p className="cl-eyebrow">A guided look — real screenshots, not mockups</p>
             <h2 className="cl-sec-h">This is the actual product</h2>
-            <p className="cl-sec-lede">Real screenshots, not mockups — the same screens your team gets on day one.</p>
+            <p className="cl-sec-lede">The same screens your team gets on day one. Click through the flagship work.</p>
           </Reveal>
-          <div className="cl-grid3">
-            {GALLERY_SHOTS.map((shot, i) => (
-              <Reveal className="cl-gallery-shot" delay={i * 0.06} hover key={shot.url}>
-                <button type="button" className="cl-gallery-shot-btn" onClick={() => setLightboxIdx(i)} aria-label={`Preview: ${shot.caption}`}>
-                  <div className="cl-browser-bar"><span className="cl-dotb r" /><span className="cl-dotb y" /><span className="cl-dotb g" /><span className="cl-url">{shot.url}</span></div>
+          <Reveal className="cl-walk">
+            <div className="cl-walk-tabs" role="tablist" aria-label="Product walkthrough">
+              {GALLERY_SHOTS.map((shot, i) => (
+                <button
+                  key={shot.url} type="button" role="tab" aria-selected={i === walkIdx}
+                  className={`cl-walk-tab ${i === walkIdx ? 'on' : ''}`}
+                  onClick={() => { setWalkIdx(i); setWalkAuto(false); }}
+                >
+                  <span className="cl-walk-tab-t">{shot.title}</span>
+                  <span className="cl-walk-tab-d">{shot.caption}</span>
+                  {i === walkIdx && walkAuto && !reduce && (
+                    <motion.span key={`p${walkIdx}`} className="cl-walk-progress" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 5, ease: 'linear' }} />
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="cl-walk-stage">
+              <AnimatePresence mode="wait">
+                <motion.button
+                  key={walkIdx} type="button" className="cl-gallery-shot-btn"
+                  onClick={() => { setLightboxIdx(walkIdx); setWalkAuto(false); }}
+                  aria-label={`Preview: ${GALLERY_SHOTS[walkIdx].caption}`}
+                  initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3, ease: [0.2, 0.7, 0.3, 1] }}
+                >
+                  <div className="cl-browser-bar"><span className="cl-dotb r" /><span className="cl-dotb y" /><span className="cl-dotb g" /><span className="cl-url">{GALLERY_SHOTS[walkIdx].url}</span></div>
                   <div className="cl-shot-img-wrap">
-                    <img className="cl-shot-img" src={shot.src} alt={shot.caption} loading="lazy" />
+                    <img className="cl-shot-img" src={GALLERY_SHOTS[walkIdx].src} alt={GALLERY_SHOTS[walkIdx].caption} loading="lazy" />
                     <span className="cl-gallery-zoom">{I.expand}</span>
                   </div>
-                </button>
-                <div className="cl-shot-caption">{shot.caption}</div>
-              </Reveal>
-            ))}
-          </div>
+                </motion.button>
+              </AnimatePresence>
+            </div>
+          </Reveal>
         </div>
       </section>
 
