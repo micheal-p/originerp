@@ -1,0 +1,187 @@
+/* ============================================================================
+   Platform Control — the operator's console.
+   Design rules, deliberately un-dashboard:
+   - one flat ink surface, hairline rules, no blur/glow/gradients
+   - data is monospace and tabular; labels are small caps; prose is quiet
+   - orange appears once per screen region: the primary action
+   - nothing animates on entrance; hover changes background, not position
+   ============================================================================ */
+
+.pc {
+  --bg: #0B0D12;
+  --panel: #10131A;
+  --panel-2: #161B26;
+  --line: rgba(238, 234, 224, 0.08);
+  --line-2: rgba(238, 234, 224, 0.17);
+  --text: #EDE9DF;
+  --dim: rgba(237, 233, 223, 0.55);
+  --faint: rgba(237, 233, 223, 0.34);
+  --accent: #FF5B1F;
+  --ok: #3FB950;
+  --warn: #D29922;
+  --err: #F85149;
+  --blue: #58A6FF;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pc * { box-sizing: border-box; }
+.pc ::selection { background: rgba(255, 91, 31, 0.3); }
+
+/* ---- chrome ---------------------------------------------------------- */
+.pc-head {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.pc-head-row {
+  max-width: 1280px; margin: 0 auto; padding: 0 24px;
+  display: flex; align-items: center; gap: 22px; height: 54px;
+}
+.pc-wm { display: flex; align-items: center; gap: 10px; }
+.pc-wm-name { font-family: Georgia, "Iowan Old Style", serif; font-size: 15.5px; white-space: nowrap; }
+.pc-wm-name em { font-style: italic; color: var(--accent); }
+.pc-wm-tag {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .16em;
+  color: var(--dim); border: 1px solid var(--line-2); border-radius: 4px; padding: 2px 7px; white-space: nowrap;
+}
+.pc-tabs { display: flex; align-self: stretch; margin-left: 8px; }
+.pc-tab {
+  display: flex; align-items: center; padding: 0 14px;
+  font-size: 13px; font-weight: 500; color: var(--dim); text-decoration: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.pc-tab:hover { color: var(--text); }
+.pc-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.pc-head-right { margin-left: auto; display: flex; align-items: center; gap: 16px; min-width: 0; }
+.pc-clock { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .04em; white-space: nowrap; }
+.pc-clock span { color: var(--faint); font-size: 10px; margin-right: 7px; letter-spacing: .12em; }
+.pc-user { font-size: 12.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+
+.pc-main { max-width: 1280px; margin: 0 auto; padding: 26px 24px 90px; }
+
+/* ---- sections -------------------------------------------------------- */
+.pc-section { margin-bottom: 36px; }
+.pc-sec-head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding-bottom: 9px; border-bottom: 1px solid var(--line); margin-bottom: 14px;
+}
+.pc-sec-title {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin: 0;
+}
+.pc-sec-count { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+.pc-sec-spacer { flex: 1; }
+.pc-sec-note { font-size: 12px; color: var(--faint); margin: 10px 0 0; }
+
+/* ---- KPI ledger strip ------------------------------------------------- */
+.pc-kpis {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+  overflow: hidden;
+}
+.pc-kpi { padding: 16px 20px 14px; border-left: 1px solid var(--line); }
+.pc-kpi:first-child { border-left: 0; }
+.pc-kpi-label {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px;
+}
+.pc-kpi-value { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 500; line-height: 1; }
+.pc-kpi-sub { font-size: 11.5px; color: var(--faint); margin-top: 7px; }
+.pc-kpi-value.warn { color: var(--warn); }
+@media (max-width: 860px) {
+  .pc-kpis { grid-template-columns: 1fr 1fr; }
+  .pc-kpi:nth-child(3) { border-left: 0; }
+  .pc-kpi:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+
+/* ---- panels, rows, tables --------------------------------------------- */
+.pc-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.pc-rowline { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.pc-rowline:first-child { border-top: 0; }
+
+.pc-table { width: 100%; border-collapse: collapse; }
+.pc-table th {
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--faint); text-align: left;
+  padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.pc-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; font-size: 13px; }
+.pc-table tr:last-child td { border-bottom: 0; }
+.pc-table tbody tr:hover { background: rgba(238, 234, 224, 0.025); }
+.pc-table .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.pc-table .r { text-align: right; }
+.pc-tablewrap { overflow-x: auto; }
+
+.pc-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.pc-dim { color: var(--dim); }
+.pc-faint { color: var(--faint); }
+
+/* ---- status ----------------------------------------------------------- */
+.pc-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.pc-status {
+  display: flex; align-items: center; gap: 11px; padding: 12px 16px;
+  text-decoration: none; color: var(--text);
+}
+.pc-status:hover { background: rgba(238, 234, 224, 0.025); }
+
+.pc-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
+  border: 1px solid var(--line-2); border-radius: 4px; padding: 2.5px 7px; color: var(--dim); white-space: nowrap;
+}
+.pc-badge.ok { color: var(--ok); border-color: rgba(63, 185, 80, 0.4); }
+.pc-badge.warn { color: var(--warn); border-color: rgba(210, 153, 34, 0.4); }
+.pc-badge.err { color: var(--err); border-color: rgba(248, 81, 73, 0.4); }
+.pc-badge.accent { color: var(--accent); border-color: rgba(255, 91, 31, 0.45); }
+
+/* ---- buttons ---------------------------------------------------------- */
+.pc-btn {
+  appearance: none; background: transparent; border: 1px solid var(--line-2);
+  color: var(--dim); border-radius: 6px; padding: 6px 12px;
+  font-size: 12px; font-weight: 500; font-family: inherit; cursor: pointer; white-space: nowrap;
+}
+.pc-btn:hover:not(:disabled) { color: var(--text); border-color: rgba(238, 234, 224, 0.34); background: rgba(238, 234, 224, 0.03); }
+.pc-btn:disabled { opacity: 0.45; cursor: default; }
+.pc-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.pc-btn.primary:hover:not(:disabled) { background: #E84F16; border-color: #E84F16; color: #fff; }
+.pc-btn.danger:hover:not(:disabled) { color: var(--err); border-color: rgba(248, 81, 73, 0.5); background: rgba(248, 81, 73, 0.06); }
+.pc-btn.sm { padding: 4px 9px; font-size: 11.5px; }
+.pc-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* ---- forms ------------------------------------------------------------ */
+.pc-field { display: flex; flex-direction: column; gap: 5px; }
+.pc-field > span {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--faint);
+}
+.pc-input {
+  width: 100%; background: var(--bg); border: 1px solid var(--line-2); border-radius: 6px;
+  padding: 8px 11px; color: var(--text); font-size: 13px; font-family: inherit; color-scheme: dark;
+}
+.pc-input:focus { outline: none; border-color: rgba(255, 91, 31, 0.6); }
+
+/* ---- modal ------------------------------------------------------------ */
+.pc-scrim { position: fixed; inset: 0; background: rgba(4, 5, 8, 0.72); display: grid; place-items: center; z-index: 100; padding: 20px; }
+.pc-modal { background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 10px; width: min(430px, 94vw); padding: 22px; }
+
+@media (max-width: 720px) {
+  /* ledger-style rows (audit log) fall back to wrapped lines; the
+     !important beats the inline fixed column widths */
+  .pc-rowline { flex-wrap: wrap; row-gap: 3px; }
+  .pc-rowline > span { width: auto !important; flex: initial !important; }
+}
+
+/* ---- responsive table fallback ---------------------------------------- */
+@media (max-width: 980px) {
+  .pc-table.collapsible thead { display: none; }
+  .pc-table.collapsible tr { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 12px 14px; border-bottom: 1px solid var(--line); align-items: center; }
+  .pc-table.collapsible td { display: block; padding: 0; border: 0; }
+  .pc-head-row { flex-wrap: wrap; height: auto; padding-top: 10px; row-gap: 4px; }
+  .pc-tabs { order: 3; width: 100%; border-top: 1px solid var(--line); margin-left: 0; }
+  .pc-tab { padding: 10px 14px 8px; }
+  .pc-clock { display: none; }
+}
