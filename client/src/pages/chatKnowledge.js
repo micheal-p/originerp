@@ -88,7 +88,7 @@ const INTENTS = [
     id: 'crm',
     phrases: ['tell me about crm', 'customer management', 'deals pipeline'],
     keys: ['crm', 'customers', 'leads', 'deals', 'pipeline', 'contacts'],
-    answer: 'The CRM is WhatsApp-first, because that\'s where Nigerian business actually happens — contacts, companies, an activity log, a deals pipeline valued in naira with follow-up reminders, and a Messages inbox fed straight from your website\'s forms so no enquiry gets ignored.',
+    answer: 'The CRM is WhatsApp-first, because that\'s where Nigerian business actually happens — contacts, companies, an activity log, a deals pipeline valued in naira, a bookings day-sheet for appointments (with one-tap WhatsApp confirmations), a Money Owed tracker that ages what customers owe you, and a Messages inbox fed straight from your website\'s forms so no enquiry gets ignored.',
     chips: ['Does my website connect to it?', 'What does it cost?'],
   },
   {
