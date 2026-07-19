@@ -625,6 +625,8 @@ export async function supabaseApi(path, opts = {}) {
   if (method === 'PATCH' && seg[0] === 'payroll' && seg[1] === 'lines' && seg.length === 3) {
     const patch = {};
     if (body.otherDeductions !== undefined) patch.other_deductions = body.otherDeductions || 0;
+    if (body.paymentStatus !== undefined) patch.payment_status = body.paymentStatus;
+    if (body.paymentNote !== undefined) patch.payment_note = body.paymentNote;
     if (patch.other_deductions !== undefined) {
       const { data: line } = await supabase.from('payroll_lines').select('gross, pension_employee, nhf, paye').eq('id', seg[2]).single();
       if (line) patch.net = line.gross - line.pension_employee - line.nhf - line.paye - patch.other_deductions;

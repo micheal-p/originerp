@@ -198,7 +198,9 @@ function EmployeeRow({ emp, onFlash, isPayrollManager }) {
               ) : accounts.map((a) => (
                 <div key={a.id} className="lc-interview-card">
                   <div style={{ fontSize:13, fontWeight:500 }}>{a.account_name} {a.is_primary && <span className="lc-badge lc-exit-done" style={{ marginLeft:6 }}>Primary</span>}</div>
-                  <div className="muted" style={{ fontSize:12, marginTop:2 }}>{a.bank_name} ({a.bank_code || '—'}) · {a.account_number}</div>
+                  {/* The wall: full account numbers only for the bank liaison
+                      (payroll manager); everyone else sees the last 4 digits. */}
+                  <div className="muted" style={{ fontSize:12, marginTop:2 }}>{a.bank_name} ({a.bank_code || '—'}) · {isPayrollManager ? a.account_number : `••••${String(a.account_number).slice(-4)}`}</div>
                   {!a.is_primary && isPayrollManager && (
                     <button className="btn btn-danger btn-sm" style={{ marginTop:6, fontSize:12 }} onClick={() => removeAccount(a)}>Remove</button>
                   )}
@@ -426,6 +428,19 @@ function RunDetail({ run, onBack, onUpdated, onDeleted, flash, isPayrollManager 
   const st = P.RUN_STATUS[run.status];
   const editable = isPayrollManager && (run.status === 'draft' || run.status === 'review');
   const missingBank = lines?.filter((l) => !l.bank_snapshot?.accountNumber) || [];
+  // Payment tracking only makes sense once the run is handed to the bank.
+  const payable = run.status === 'approved' || run.status === 'released' || run.status === 'disbursed';
+  const setPayment = async (l, status) => {
+    let note = '';
+    if (status === 'failed') {
+      note = window.prompt('Why did this payment fail? (e.g. wrong account number)') || '';
+      if (note === '' && !window.confirm('Mark as failed without a note?')) return;
+    }
+    try {
+      const updated = await P.updateLine(l.id, { paymentStatus: status, paymentNote: note });
+      setLines((s2) => s2.map((x) => (x.id === l.id ? updated : x)));
+    } catch (e) { flash(e.message, true); }
+  };
 
   return (
     <div>
@@ -469,7 +484,7 @@ function RunDetail({ run, onBack, onUpdated, onDeleted, flash, isPayrollManager 
       {lines === null ? <div className="suite-loading"><div className="boot-spinner" /></div> : (
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Employee</th><th>Gross</th><th>Pension</th><th>NHF</th><th>PAYE</th><th>Other ded.</th><th>Net</th></tr></thead>
+            <thead><tr><th>Employee</th><th>Gross</th><th>Pension</th><th>NHF</th><th>PAYE</th><th>Other ded.</th><th>Net</th>{payable && <th>Payment</th>}</tr></thead>
             <tbody>
               {lines.length === 0 && <tr><td colSpan={7} className="td-empty">No lines — every active employee is missing a salary structure.</td></tr>}
               {lines.map((l) => (
@@ -487,6 +502,19 @@ function RunDetail({ run, onBack, onUpdated, onDeleted, flash, isPayrollManager 
                     ) : P.money(l.other_deductions)}
                   </td>
                   <td style={{ fontWeight:600 }}>{P.money(l.net)}</td>
+                  {payable && (
+                    <td>
+                      {l.payment_status === 'paid' && <span style={{ fontSize:11, fontWeight:700, background:'#dff6dd', color:'#1a6a1a', borderRadius:100, padding:'2px 10px' }}>PAID</span>}
+                      {l.payment_status === 'failed' && <span title={l.payment_note} style={{ fontSize:11, fontWeight:700, background:'#fde7e9', color:'#a4262c', borderRadius:100, padding:'2px 10px' }}>FAILED{l.payment_note ? ' *' : ''}</span>}
+                      {(!l.payment_status || l.payment_status === 'pending') && <span className="muted" style={{ fontSize:11.5 }}>pending</span>}
+                      {isPayrollManager && l.payment_status !== 'paid' && (
+                        <button className="btn btn-ghost" style={{ fontSize:11, padding:'1px 8px', marginLeft:6 }} onClick={() => setPayment(l, 'paid')}>Paid</button>
+                      )}
+                      {isPayrollManager && l.payment_status !== 'failed' && (
+                        <button className="btn btn-ghost" style={{ fontSize:11, padding:'1px 8px', color:'#a4262c' }} onClick={() => setPayment(l, 'failed')}>Failed</button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -545,6 +573,17 @@ function BankWallTab({ flash }) {
   const load = () => { setLoading(true); P.getBankWall().then(setActions).catch((e) => flash(e.message, true)).finally(() => setLoading(false)); };
   useEffect(load, []); // eslint-disable-line
 
+  // The wall hands the liaison the actual thing the bank needs — the same
+  // schedule the run-detail export produces, one click from the queue.
+  const [downloading, setDownloading] = useState(null);
+  const downloadSchedule = async (a) => {
+    setDownloading(a.id);
+    try {
+      const lines = await P.getRunLines(a.run.id);
+      P.exportBankCsv(a.run, lines);
+    } catch (e) { flash(e.message, true); } finally { setDownloading(null); }
+  };
+
   const mark = async (a, status) => {
     try { await P.markBankAction(a.id, status); flash(status === 'actioned' ? 'Marked as actioned.' : 'Reopened.'); load(); }
     catch (e) { flash(e.message, true); }
@@ -577,7 +616,12 @@ function BankWallTab({ flash }) {
                       {a.status === 'actioned' ? `Actioned by ${a.actionedBy?.name || ''}` : 'Pending'}
                     </span>
                   </td>
-                  <td>
+                  <td style={{ display:'flex', gap:8, alignItems:'center' }}>
+                    {a.action_type === 'run_approved' && a.run?.id && (
+                      <button className="iconbtn" disabled={downloading === a.id} onClick={() => downloadSchedule(a)}>
+                        {downloading === a.id ? 'Preparing…' : 'Download bank schedule'}
+                      </button>
+                    )}
                     {a.status === 'pending'
                       ? <button className="iconbtn" onClick={() => mark(a, 'actioned')}>Mark actioned</button>
                       : <button className="iconbtn" onClick={() => mark(a, 'pending')}>Reopen</button>}
