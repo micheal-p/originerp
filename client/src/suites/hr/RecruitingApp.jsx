@@ -301,6 +301,73 @@ function Scorecard({ iv, editable, onSave }) {
   );
 }
 
+/* ---- EmailCandidateModal — ATS messaging over the email channel ------------
+   Templates are drafts, not auto-sends: HR reviews and edits before sending.
+   The server fixes the recipient to this application's candidate. */
+const EMAIL_TEMPLATES = (app, reqTitle, orgName) => ({
+  invite: {
+    label: 'Interview invitation',
+    subject: `Interview invitation — ${reqTitle} at ${orgName}`,
+    body: `Dear ${app.candidate.name.split(' ')[0]},\n\nThank you for applying for the ${reqTitle} role at ${orgName}. We were impressed by your application and would like to invite you to an interview.\n\nWe will contact you shortly to agree a convenient date and time. If you have any questions before then, just reply to this email.\n\nBest regards,\n${orgName} hiring team`,
+  },
+  offer: {
+    label: 'Offer link',
+    subject: `Your offer from ${orgName}`,
+    body: `Dear ${app.candidate.name.split(' ')[0]},\n\nCongratulations — ${orgName} is pleased to offer you the position of ${reqTitle}.\n\nYou can review the full offer and respond here:\n${window.location.origin}/offer/${app.offer_token}\n\nThis link is private to you. We look forward to your decision.\n\nBest regards,\n${orgName} hiring team`,
+  },
+  reject: {
+    label: 'Not moving forward',
+    subject: `Your application for ${reqTitle} at ${orgName}`,
+    body: `Dear ${app.candidate.name.split(' ')[0]},\n\nThank you for taking the time to apply for the ${reqTitle} role at ${orgName}. After careful consideration we will not be moving forward with your application on this occasion.\n\nWe genuinely appreciate your interest and encourage you to apply for future roles that match your experience.\n\nBest wishes,\n${orgName} hiring team`,
+  },
+});
+
+function EmailCandidateModal({ app, reqTitle, orgName, flash, onClose }) {
+  const templates = EMAIL_TEMPLATES(app, reqTitle, orgName);
+  const [tpl, setTpl] = useState(app.offer_status === 'sent' ? 'offer' : 'invite');
+  const [subject, setSubject] = useState(templates[app.offer_status === 'sent' ? 'offer' : 'invite'].subject);
+  const [text, setText] = useState(templates[app.offer_status === 'sent' ? 'offer' : 'invite'].body);
+  const [busy, setBusy] = useState(false);
+
+  const pick = (k) => { setTpl(k); setSubject(templates[k].subject); setText(templates[k].body); };
+
+  const send = async () => {
+    setBusy(true);
+    try {
+      const { getAccessToken } = await import('../../api/client.js');
+      const r = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAccessToken()}` },
+        body: JSON.stringify({ action: 'send', applicationId: app.id, subject, body: text }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.message || 'The email could not be sent.');
+      flash(`Email sent to ${app.candidate.email}.`);
+      onClose();
+    } catch (e) { flash(e.message, true); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title={`Email ${app.candidate.name}`} onClose={onClose} wide>
+      <p className="muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>
+        To <b>{app.candidate.email}</b> · sent as “{orgName} via Collarone” — replies go to your company email.
+      </p>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {Object.entries(templates).map(([k, t]) => (
+          <button key={k} type="button" className={`btn ${tpl === k ? 'btn-primary' : 'btn-ghost'}`} style={{ fontSize: 12, padding: '4px 12px' }} onClick={() => pick(k)}>{t.label}</button>
+        ))}
+      </div>
+      <div className="field"><label>Subject</label><input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} /></div>
+      <div className="field"><label>Message</label>
+        <textarea className="input" rows={10} value={text} onChange={(e) => setText(e.target.value)} style={{ resize: 'vertical', fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.6 }} /></div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={send}>{busy ? <span className="spinner" /> : 'Send email'}</button>
+      </div>
+    </Modal>
+  );
+}
+
 /* ---- HireModal — one-click hire: staff account from the candidate record ----
    Calls the same admin create path as Admin Center → Users (service role,
    consumes one seat credit, payroll country gate applies). Shows the temp
@@ -406,7 +473,15 @@ function ApplicationDetail({ app, reqTitle, staff, myId, isHrManager, onUpdated,
     try { await L.deleteApplication(app.id); onDeleted(app.id); onClose(); } catch (e) { flash(e.message, true); }
   };
 
+  const { user: me } = useAuth();
+  const orgName = me?.org?.name || 'our company';
   const [hireModal, setHireModal] = useState(false);
+  const [emailModal, setEmailModal] = useState(false);
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  useEffect(() => {
+    fetch('/api/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status' }) })
+      .then((r) => r.json()).then((d) => setEmailEnabled(Boolean(d.enabled))).catch(() => {});
+  }, []);
 
   const copyDetails = async () => {
     try {
@@ -420,8 +495,13 @@ function ApplicationDetail({ app, reqTitle, staff, myId, isHrManager, onUpdated,
       <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
         <div>
           <div style={{ fontWeight:600, fontSize:15 }}>{app.candidate.name}</div>
-          <div className="muted" style={{ fontSize:12.5 }}>
-            {app.candidate.email}{app.candidate.phone ? ` · ${app.candidate.phone}` : ''}
+          <div className="muted" style={{ fontSize:12.5, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+            <span>{app.candidate.email}{app.candidate.phone ? ` · ${app.candidate.phone}` : ''}</span>
+            {emailEnabled && isHrManager && (
+              <button type="button" className="btn btn-ghost" style={{ fontSize:11.5, padding:'2px 10px' }} onClick={() => setEmailModal(true)}>
+                Email candidate
+              </button>
+            )}
           </div>
         </div>
         <span className={`lc-badge ${(L.STAGE[app.stage] || L.STAGE.applied).cls}`} style={{ marginTop:2 }}>{(L.STAGE[app.stage] || L.STAGE.applied).label}</span>
@@ -535,6 +615,9 @@ function ApplicationDetail({ app, reqTitle, staff, myId, isHrManager, onUpdated,
                   </button>
                 </div>
               </div>
+            )}
+            {emailModal && (
+              <EmailCandidateModal app={app} reqTitle={reqTitle} orgName={orgName} flash={flash} onClose={() => setEmailModal(false)} />
             )}
             {hireModal && (
               <HireModal app={app} reqTitle={reqTitle} flash={flash}
