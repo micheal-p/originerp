@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { apiGet } from '../api/client.js';
 import { SUITE_META, tierLabel } from '../config/suites.js';
 import AppLayout from '../components/AppLayout.jsx';
 import SuiteIcon from '../components/SuiteIcon.jsx';
+import ProductTour, { tourSeen } from '../components/ProductTour.jsx';
 
 const greeting = () => {
   const h = new Date().getHours();
@@ -48,6 +49,9 @@ function SuiteTile({ s, onOpen, index, reduce }) {
 }
 
 export default function Launcher() {
+  // First-run product tour (skippable, replayable from Help via /?tour=1)
+  const [params] = useSearchParams();
+  const [tour, setTour] = useState(false);
   const { user } = useAuth();
   const nav = useNavigate();
   const reduce = useReducedMotion();
@@ -62,6 +66,25 @@ export default function Launcher() {
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  // Start the tour on a first visit (or ?tour=1 replay) once tiles exist.
+  useEffect(() => {
+    if (loading) return;
+    if (params.get('tour') === '1' || !tourSeen(user?.id)) {
+      const t = setTimeout(() => setTour(true), 600);
+      return () => clearTimeout(t);
+    }
+  }, [loading]); // eslint-disable-line
+
+  const TOUR_STEPS = [
+    { title: 'Welcome to Collarone', body: `This is ${user?.org?.name || 'your company'}'s own workspace — every tool your team uses lives behind this one login. This quick tour shows you around; skip it anytime.` },
+    { target: '[data-tour="tiles"]', title: 'Your suites', body: 'Each tile is a full suite — open any of them. Locked tiles are suites your admin hasn\'t switched on for you yet.' },
+    { target: '[data-tour="search"]', title: 'Search everything', body: 'Find people, suites and admin pages from anywhere — start typing and jump straight there.' },
+    { target: '[data-tour="waffle"]', title: 'Switch suites fast', body: 'The grid button hops between suites without going back home.' },
+    { target: '[data-tour="account"]', title: 'Your profile', body: 'Your photo, phone, date of birth, home address and emergency contact live here — keep them current, HR uses them.' },
+    { target: '[data-tour="org"]', title: 'You\'re in the right place', body: 'This chip always shows whose workspace you\'re in. Your company\'s data is completely isolated from every other company on Collarone.' },
+    { title: 'That\'s the basics', body: 'Explore any suite — everything is built to be self-explanatory from here. Replay this tour anytime from the Help page.' },
+  ];
 
   const core = suites.filter((s) => s.tier === 'core');
   const extended = suites.filter((s) => s.tier === 'extended');
@@ -91,7 +114,7 @@ export default function Launcher() {
         <>
           <div className="suite-group">
             <div className="group-head"><h2>{tierLabel.core}</h2><span className="group-line" /></div>
-            <div className="tile-grid">{core.map((s, i) => <SuiteTile key={s.key} s={s} index={i} reduce={reduce} onOpen={(x) => nav(`/suite/${x.key}`)} />)}</div>
+            <div className="tile-grid" data-tour="tiles">{core.map((s, i) => <SuiteTile key={s.key} s={s} index={i} reduce={reduce} onOpen={(x) => nav(`/suite/${x.key}`)} />)}</div>
           </div>
           <div className="suite-group">
             <div className="group-head"><h2>{tierLabel.extended}</h2><span className="group-line" /></div>
@@ -99,6 +122,7 @@ export default function Launcher() {
           </div>
         </>
       )}
+          {tour && <ProductTour steps={TOUR_STEPS} userId={user?.id} onClose={() => setTour(false)} />}
     </AppLayout>
   );
 }

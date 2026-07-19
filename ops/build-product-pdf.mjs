@@ -66,7 +66,8 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
   .next { margin-top: auto; font-size: 10px; color: #6B6F78; padding-top: 10px; }
   .next span { font-weight: 700; color: #14161C; }
   .shotwrap { flex: 1; border: 1px solid #E4E1D8; border-radius: 10px; overflow: hidden; background: #F6F5F1; box-shadow: 0 10px 30px rgba(20,22,28,0.10); }
-  .shotwrap img { width: 100%; height: 100%; object-fit: cover; object-position: left top; display: block; }
+  .shotwrap { display: flex; align-items: flex-start; }
+  .shotwrap img { width: 100%; height: auto; max-height: 100%; object-fit: contain; object-position: left top; display: block; }
   .foot { position: absolute; bottom: 6mm; left: 14mm; right: 14mm; font-size: 8.5px; letter-spacing: .08em; color: #9A9CA3; display: flex; justify-content: space-between; }
   .cover { background: #0A0E1A; color: #F4F1EA; flex-direction: column; justify-content: space-between; }
   .cover .wm { font-family: Georgia, serif; font-size: 30px; }

@@ -187,11 +187,11 @@ export default function AppLayout({ breadcrumb = [], title, commandBar, children
             <span className="sb-title">Collar<em style={{ fontStyle: 'italic', color: 'var(--brand)' }}>One</em></span>
           </Link>
           {user?.org?.name && (
-            <span className="sb-org" title={`You are working in ${user.org.name}'s workspace`}>{user.org.name}</span>
+            <span className="sb-org" data-tour="org" title={`You are working in ${user.org.name}'s workspace`}>{user.org.name}</span>
           )}
         </div>
 
-        <div className="sb-search" ref={sbRef}>
+        <div className="sb-search" ref={sbRef} data-tour="search">
           <SearchIcon />
           <input
             placeholder="Search suites, people and settings"
@@ -250,7 +250,7 @@ export default function AppLayout({ breadcrumb = [], title, commandBar, children
 
         <div className="sb-right">
           <div className="waffle-wrap" ref={waffleRef}>
-            <button className="iconbtn" aria-label="Open suites" onClick={() => setWaffle((v) => !v)}>
+            <button className="iconbtn" aria-label="Open suites" data-tour="waffle" onClick={() => setWaffle((v) => !v)}>
               <SuiteIcon name="grid" size={20} color="currentColor" />
             </button>
             {waffle && (
@@ -273,7 +273,7 @@ export default function AppLayout({ breadcrumb = [], title, commandBar, children
           </div>
 
           <div className="usermenu-wrap" ref={menuRef}>
-            <button className="usermenu-btn" onClick={() => setMenu((v) => !v)}>
+            <button className="usermenu-btn" data-tour="account" onClick={() => setMenu((v) => !v)}>
               {user?.avatarUrl
                 ? <img src={user.avatarUrl} alt="" className="avatar" style={{ objectFit:'cover' }} />
                 : <span className="avatar">{initials(user?.name)}</span>}

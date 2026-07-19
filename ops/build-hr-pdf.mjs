@@ -80,7 +80,8 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
   .why { margin-top: 14px; border-left: 3px solid #E0500F; padding: 8px 12px; font-size: 10.5px; line-height: 1.6; color: #3A3E48; background: #FAF7F2; }
   .why-t { font-weight: 800; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: #E0500F; margin-bottom: 4px; }
   .shotwrap { flex: 1; border: 1px solid #E4E1D8; border-radius: 10px; overflow: hidden; background: #F6F5F1; box-shadow: 0 10px 30px rgba(20,22,28,0.10); }
-  .shotwrap img { width: 100%; height: 100%; object-fit: cover; object-position: left top; display: block; }
+  .shotwrap { display: flex; align-items: flex-start; }
+  .shotwrap img { width: 100%; height: auto; max-height: 100%; object-fit: contain; object-position: left top; display: block; }
   .foot { position: absolute; bottom: 6mm; left: 14mm; right: 14mm; font-size: 8.5px; letter-spacing: .08em; color: #9A9CA3; display: flex; justify-content: space-between; }
   .cover { background: #0A0E1A; color: #F4F1EA; flex-direction: column; justify-content: space-between; }
   .cover .wm { font-family: Georgia, serif; font-size: 30px; }
