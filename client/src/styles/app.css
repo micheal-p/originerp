@@ -423,3 +423,17 @@
   .lv-cal-head h3 { font-size: 15px; min-width: 120px; }
   .lv-balances { grid-template-columns: 1fr 1fr; }
 }
+
+/* Mobile: keep interactive controls at a comfortable finger-sized tap target
+   (~40px). Flex-centering keeps the label vertically centred when the taller
+   min-height is applied to controls that were shorter. */
+@media (max-width: 760px) {
+  .crm-pill, .pill, .cmd, .lv-tab {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .lv-tab { white-space: nowrap; }
+  .btn, .btn-primary, .btn-ghost, .btn-sm { min-height: 40px; }
+}
