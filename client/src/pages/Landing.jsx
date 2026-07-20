@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PublicThemeGallery from '../components/PublicThemeGallery.jsx';
-import BuiltForStrip from '../components/BuiltForStrip.jsx';
+import CardCarousel from '../components/CardCarousel.jsx';
 import { motion, animate, AnimatePresence, useReducedMotion, useScroll, useTransform, useMotionValue, useSpring, useMotionValueEvent } from 'framer-motion';
 import { SUITES, SUITE_META } from '../config/suites.js';
 import SuiteIcon from '../components/SuiteIcon.jsx';
@@ -497,8 +497,6 @@ export default function Landing() {
         </div>
       </section>
 
-      <BuiltForStrip />
-
       <section className="cl-sec" id="capabilities">
         <div className="cl-wrap">
           <Reveal className="cl-sec-head">
@@ -506,12 +504,12 @@ export default function Landing() {
             <h2 className="cl-sec-h">Built to feel obvious, not overwhelming</h2>
             <p className="cl-sec-lede">Every screen does one job well. No settings maze, no module you have to configure before it's useful.</p>
           </Reveal>
-          <div className="cl-grid4 cl-process">
+          <CardCarousel className="cl-grid4 cl-process" dotLabel="step">
             <Reveal className="cl-process-card" hover><span className="cl-process-num">01</span><div className="cl-icon-wrap">{I.bolt}</div><h3>Set up in minutes</h3><p>Sign up, add your team, and your space is ready — no onboarding call required.</p></Reveal>
             <Reveal className="cl-process-card" delay={0.05} hover><span className="cl-process-num">02</span><div className="cl-icon-wrap">{I.shield}</div><h3>Access, done right</h3><p>Every screen checks who's allowed to see it — tested as different roles before anything ships.</p></Reveal>
             <Reveal className="cl-process-card" delay={0.1} hover><span className="cl-process-num">03</span><div className="cl-icon-wrap">{I.money}</div><h3>Priced in naira</h3><p>Pay by transfer or card, no forex markup, no bill that moves with the exchange rate.</p></Reveal>
             <Reveal className="cl-process-card" delay={0.15} hover><span className="cl-process-num">04</span><div className="cl-icon-wrap">{I.globeBig}</div><h3>Grows with you</h3><p>Start with a website and a staff list. Turn on leave, tasks and the rest the day you need them.</p></Reveal>
-          </div>
+          </CardCarousel>
         </div>
       </section>
 
@@ -680,7 +678,7 @@ export default function Landing() {
             <h2 className="cl-sec-h">Pick your suites. Pick your tier.</h2>
             <p className="cl-sec-lede">Every tier is à la carte — choose exactly the suites your business needs on any of them. Tiers differ in how many suites are included, your base fee, and support level, not in what you're allowed to use. No forex markup, no dollar pricing, and your rate locks in at sign-up.</p>
           </Reveal>
-          <div className="cl-grid3">
+          <CardCarousel className="cl-grid3" dotLabel="plan">
             {[
               {
                 key: 'startup', name: 'Startup', price: '15,000', included: 3, extra: '8,000',
@@ -722,7 +720,7 @@ export default function Landing() {
                   : <Link className={`cl-btn cl-pc-btn${p.cta[2] ? ' cl-btn-primary' : ''}`} to={p.cta[1]}>{p.cta[0]}</Link>}
               </Reveal>
             ))}
-          </div>
+          </CardCarousel>
           <PriceCalculator />
           <p className="cl-price-note">Pay yearly and save 15% off the total. Your base fee and per-suite rate both lock in at sign-up — they don't change later even if our published prices do.</p>
         </div>

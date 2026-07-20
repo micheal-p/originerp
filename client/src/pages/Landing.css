@@ -324,6 +324,17 @@
 @media (max-width: 900px) { .cl-grid3, .cl-grid4 { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 600px) { .cl-grid3, .cl-grid4 { grid-template-columns: 1fr; } }
 
+/* Mobile card carousel with pagination dots (desktop: plain grid, dots hidden) */
+.cl-carousel-dots { display: none; }
+@media (max-width: 600px) {
+  .cl-carousel .cl-carousel-track { display: flex; grid-template-columns: none; position: relative; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; margin: 0 -20px; padding: 6px 20px 2px; scrollbar-width: none; }
+  .cl-carousel .cl-carousel-track::-webkit-scrollbar { display: none; }
+  .cl-carousel .cl-carousel-track > * { flex: 0 0 84%; min-width: 0; scroll-snap-align: center; }
+  .cl-carousel-dots { display: flex; justify-content: center; gap: 8px; margin-top: 22px; }
+  .cl-carousel-dot { width: 8px; height: 8px; padding: 0; border: none; border-radius: 999px; background: var(--line-strong); cursor: pointer; transition: width .22s ease, background .22s ease; }
+  .cl-carousel-dot.on { width: 24px; background: var(--bolt); }
+}
+
 .cl-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 28px; box-shadow: var(--shadow-sm); transition: box-shadow .3s ease, border-color .3s ease; }
 .cl-card:hover { box-shadow: var(--shadow-md); border-color: var(--line-strong); }
 .cl-card h3 { font-size: 17px; margin-bottom: 8px; }
