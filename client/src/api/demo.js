@@ -89,7 +89,11 @@ export async function demoApi(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase();
   const body = opts.body || {};
   const seg = path.split('?')[0].split('/').filter(Boolean);
-  const route = `${method} /${seg.join('/')}`.replace(/\/(u[a-z0-9]+)(\/|$)/, '/:id$2');
+  // Normalise generated user-id segments (id = 'u' + 7 chars, see mk()) to
+  // /:id. The length floor of 5 is load-bearing: without it the literal
+  // resource name `/users` (u + 'sers', 4 chars) is itself rewritten to /:id,
+  // which 404s the whole Admin → Users page in demo mode.
+  const route = `${method} /${seg.join('/')}`.replace(/\/(u[a-z0-9]{5,})(\/|$)/, '/:id$2');
 
   switch (true) {
     // ---- auth ----
@@ -404,7 +408,7 @@ export async function demoApi(path, opts = {}) {
   // demo mutations survive a reload. Ids deliberately avoid a leading 'u'
   // (the route-normalization regex above rewrites /u…/ segments to /:id), so
   // PATCH/DELETE handlers match on seg, not `route`.
-  if (['staff', 'benefits', 'procurement', 'crm', 'finance', 'documents', 'docfolders', 'projects', 'itassets'].includes(seg[0])) {
+  if (['staff', 'benefits', 'procurement', 'crm', 'finance', 'documents', 'docfolders', 'projects', 'itassets', 'trade-docs', 'automation'].includes(seg[0])) {
     const me = requireAuth();
     const meRef = { id: me.id, name: me.name, email: me.email };
     const now = () => new Date().toISOString();
@@ -910,7 +914,69 @@ export async function demoApi(path, opts = {}) {
         save(); return { ok: true };
       }
     }
+
+    // ---- trade documents (invoice / receipt / GRN / SRP) ----
+    if (seg[0] === 'trade-docs') {
+      db.tradeDocs = db.tradeDocs || [];
+      db.tradeDocSettings = db.tradeDocSettings || null;
+      const PREFIX = { invoice: 'INV', receipt: 'RCT', grn: 'GRN', srp: 'SRP' };
+      if (route === 'GET /trade-docs/settings') return { settings: db.tradeDocSettings };
+      if (route === 'POST /trade-docs/settings') {
+        db.tradeDocSettings = {
+          id: db.tradeDocSettings?.id || rid('tds'),
+          company_name: body.companyName || '', address: body.address || '', tagline: body.tagline || '',
+          phone: body.phone || '', email: body.email || '', logo_url: body.logoUrl || '',
+          accent_color: body.accentColor || '#0A0E1A', signature_name: body.signatureName || '',
+          signature_title: body.signatureTitle || '', signature_url: body.signatureUrl || '',
+          template_key: body.templateKey || 'classic',
+        };
+        save(); return { settings: db.tradeDocSettings };
+      }
+      if (route === 'GET /trade-docs') return { documents: db.tradeDocs };
+      if (route === 'POST /trade-docs') {
+        const items = body.items || [];
+        const subtotal = items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice ?? it.unit_price ?? it.rate ?? 0)), 0);
+        const vat_rate = body.vatRate ?? 0.075;
+        const vat_amount = subtotal * vat_rate;
+        const type = body.docType || 'invoice';
+        const seq = db.tradeDocs.filter((d) => d.doc_type === type).length + 1;
+        const doc = {
+          id: rid('td'), doc_type: type, doc_no: `${PREFIX[type] || 'DOC'}-${String(seq).padStart(4, '0')}`,
+          party_name: body.partyName || '', party_phone: body.partyPhone || '', party_email: body.partyEmail || '',
+          party_address: body.partyAddress || '', items, subtotal, vat_rate, vat_amount, total: subtotal + vat_amount,
+          status: 'issued', due_date: body.dueDate || null, reference: body.reference || '', notes: body.notes || '',
+          contact: null, vendor: null, warehouse: null, author: meRef, created_at: now(),
+        };
+        db.tradeDocs.unshift(doc); save(); return { document: doc };
+      }
+      if (method === 'PATCH' && seg.length === 2) {
+        const d = db.tradeDocs.find((x) => x.id === seg[1]);
+        if (d) { d.status = body.status || d.status; save(); }
+        return { document: d };
+      }
+      if (method === 'DELETE' && seg.length === 2) {
+        db.tradeDocs = db.tradeDocs.filter((x) => x.id !== seg[1]); save(); return { ok: true };
+      }
+    }
+
+    // ---- automation settings + run history ----
+    if (seg[0] === 'automation') {
+      db.automationSettings = db.automationSettings || [];
+      db.automationRuns = db.automationRuns || [];
+      if (route === 'GET /automation/settings') return { settings: db.automationSettings };
+      if (route === 'POST /automation/settings') {
+        let row = db.automationSettings.find((s) => s.key === body.key);
+        if (!row) { row = { id: rid('as'), key: body.key, enabled: !!body.enabled, config: body.config || {} }; db.automationSettings.push(row); }
+        else { row.enabled = !!body.enabled; row.config = body.config || {}; }
+        save(); return { setting: row };
+      }
+      if (route === 'GET /automation/runs') return { runs: db.automationRuns };
+    }
   }
+
+  // Payroll runs list (Banking Wall). Empty in demo — shows the clean
+  // "no runs yet" state instead of a route-missing toast.
+  if (route === 'GET /payroll/runs') return { runs: [] };
 
   // storefront funnel — demo-safe stubs so a prospect clicking through a
   // demo store gets believable behaviour instead of a 404
