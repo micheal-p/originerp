@@ -1140,3 +1140,7 @@ export const LAYOUTS = {
   'landing-hero': LandingSite,
   'company-profile': CompanySite,
 };
+
+// Shared commerce engine, reused by the folder-based themes/ so each new theme
+// gets the real cart + Paystack/transfer/COD checkout without reinventing it.
+export { CartProvider, CartButton, CartDrawer, CartCtx, Block, waDigits, fmtN };

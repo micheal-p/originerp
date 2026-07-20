@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getPublicSite, getPreviewSite } from '../admin/website/websiteApi.js';
 import { LAYOUTS } from './siteLayouts.jsx';
+import { getSiteTheme } from './themes/index.js';
 
 export default function PublicSite() {
   const { slug } = useParams();
@@ -71,7 +72,13 @@ export default function PublicSite() {
     );
   }
 
+  // A folder-based theme (self-contained, distinct) takes precedence when the
+  // org's theme key matches one; otherwise fall back to the legacy layouts.
+  const folderTheme = getSiteTheme(data.theme?.key);
   const Layout = LAYOUTS[data.theme?.layoutKey] || LAYOUTS['company-profile'];
+  const Rendered = folderTheme
+    ? <folderTheme.Component data={{ ...data, isPreview }} activeSlug={activeSlug} setActiveSlug={setActiveSlug} />
+    : <Layout data={{ ...data, isPreview }} activeSlug={activeSlug} setActiveSlug={setActiveSlug} />;
   return (
     <>
       {isPreview && (
@@ -87,7 +94,7 @@ export default function PublicSite() {
           <button onClick={() => setPayResult(null)} aria-label="Dismiss" style={{ marginLeft: 12, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontSize: 12 }}>Dismiss</button>
         </div>
       )}
-      <Layout data={{ ...data, isPreview }} activeSlug={activeSlug} setActiveSlug={setActiveSlug} />
+      {Rendered}
     </>
   );
 }
