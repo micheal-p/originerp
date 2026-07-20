@@ -1,12 +1,27 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import type { ReactNode, Dispatch, SetStateAction } from 'react';
 import { api, apiPost, setAccessToken, onAuthExpired, bootSession, DEMO } from '../api/client.js';
 import { applyOrgTheme, resetOrgTheme } from '../lib/theme.js';
+import type { User } from '../types';
 
-const AuthCtx = createContext(null);
-export const useAuth = () => useContext(AuthCtx);
+interface AuthContextValue {
+  user: User | null;
+  setUser: Dispatch<SetStateAction<User | null>>;
+  booting: boolean;
+  login: (email: string, password: string) => Promise<User>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<User>;
+}
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+const AuthCtx = createContext<AuthContextValue | null>(null);
+export const useAuth = (): AuthContextValue => {
+  const ctx = useContext(AuthCtx);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
+};
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
   const [booting, setBooting] = useState(true);
   // signInWithPassword() (inside login()) fires the SAME auth-state-change
   // event this listener reacts to. Without this guard, both paths independently
@@ -56,7 +71,7 @@ export function AuthProvider({ children }) {
   // Forced sign-out when a refresh fails mid-session.
   useEffect(() => onAuthExpired(() => { setAccessToken(null); setUser(null); }), []);
 
-  const login = useCallback(async (email, password) => {
+  const login = useCallback(async (email: string, password: string) => {
     explicitAuthInFlight.current = true;
     try {
       const data = await apiPost('/auth/login', { email, password });
