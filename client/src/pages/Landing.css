@@ -242,6 +242,20 @@
 .cl-chip { font-size: 13.5px; color: var(--text-soft); background: var(--surface); border: 1px solid var(--line-strong);
   padding: 9px 16px; border-radius: 100px; box-shadow: var(--shadow-sm); display: inline-flex; align-items: center; gap: 7px; }
 
+/* Hero foot — platform stats + "who it's for" folded into the bottom of the dark hero */
+.cl-hero-foot { grid-column: 1 / -1; margin-top: clamp(44px, 6vw, 76px); padding-top: 30px; border-top: 1px solid rgba(244,241,234,0.12); }
+.cl-hf-stats { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 30px; }
+.cl-hf-stat { position: relative; color: rgba(244,241,234,0.82); font-size: 14px; font-weight: 500; }
+.cl-hf-stat strong { color: #fff; font-weight: 750; }
+.cl-hf-stat + .cl-hf-stat::before { content: ''; position: absolute; left: -16px; top: 50%; width: 3px; height: 3px; border-radius: 50%; background: rgba(244,241,234,0.32); transform: translateY(-50%); }
+.cl-hf-made { text-align: center; margin-top: 38px; }
+.cl-hf-eyebrow { color: var(--bolt); font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 9px; }
+.cl-hf-line { color: #fff; font-size: clamp(20px, 3vw, 27px); font-weight: 650; letter-spacing: -0.015em; margin: 0 0 18px; }
+.cl-hf-inds { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 740px; margin: 0 auto 18px; }
+.cl-hf-ind { border: 1px solid rgba(244,241,234,0.16); background: rgba(244,241,234,0.05); color: rgba(244,241,234,0.9); border-radius: 100px; padding: 7px 15px; font-size: 13px; font-weight: 600; }
+.cl-hf-sub { color: rgba(244,241,234,0.58); font-size: 14px; line-height: 1.6; max-width: 640px; margin: 0 auto; }
+@media (max-width: 640px) { .cl-hf-stats { gap: 10px 26px; } .cl-hf-stat { font-size: 13px; } }
+
 .cl-hero-shot-wrap { position: relative; }
 .cl-hero-shot { border-radius: 20px; overflow: hidden; will-change: transform;
   box-shadow: var(--shadow-lg); border: 1px solid var(--line); background: var(--surface); }
