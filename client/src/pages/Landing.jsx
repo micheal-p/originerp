@@ -6,7 +6,7 @@ import { motion, animate, AnimatePresence, useReducedMotion, useScroll, useTrans
 import { SUITES, SUITE_META } from '../config/suites.js';
 import SuiteIcon from '../components/SuiteIcon.jsx';
 import ChatWidget from './ChatWidget.jsx';
-import { PLANS, PER_STAFF_FEE, ANNUAL_DISCOUNT, naira } from '../lib/pricing.js';
+import { PLANS, PRICING, usePricing, naira } from '../lib/pricing.js';
 import shotHome from '../assets/shots/home.jpg';
 import shotTasks from '../assets/shots/tasks.jpg';
 import shotCrm from '../assets/shots/crm.jpg';
@@ -136,9 +136,11 @@ const GALLERY_SHOTS = [
 const marqueeItems = ['Staff Directory', 'Leave Management', 'Task Tracking', 'Visitor Sign-in', 'Recruiting & Careers', 'Onboarding', 'Performance Reviews', 'Compliance Vault', 'Payroll — PAYE · Pension · NHF', 'Customer CRM', 'Website Builder', 'Invoicing & GRNs', 'Automation'];
 
 // pricing comes from the single shared model — do not restate numbers here
-const PRICE_TIERS = PLANS.map((t) => ({ key: t.key, name: t.name, baseFee: t.baseFee, included: t.includedSuites, extraFee: t.extraSuiteFee }));
+const priceTiers = () => PLANS.map((t) => ({ key: t.key, name: t.name, baseFee: t.baseFee, included: t.includedSuites, extraFee: t.extraSuiteFee }));
 
 function PriceCalculator() {
+  const { perStaff, annualDiscount } = usePricing();
+  const PRICE_TIERS = priceTiers();
   const [tierKey, setTierKey] = useState('standard');
   const [selected, setSelected] = useState(() => new Set(SUITES.slice(0, 5).map((s) => s.key)));
   const [staffCount, setStaffCount] = useState(10);
@@ -146,12 +148,12 @@ function PriceCalculator() {
   const tier = PRICE_TIERS.find((t) => t.key === tierKey);
   const suiteCount = selected.size;
   const extra = Math.max(0, suiteCount - tier.included);
-  const monthly = tier.baseFee + extra * tier.extraFee + staffCount * PER_STAFF_FEE;
-  const total = yearly ? monthly * 12 * (1 - ANNUAL_DISCOUNT) : monthly;
+  const monthly = tier.baseFee + extra * tier.extraFee + staffCount * perStaff;
+  const total = yearly ? monthly * 12 * (1 - annualDiscount) : monthly;
 
   const pickTier = (key) => {
     setTierKey(key);
-    setSelected(new Set(SUITES.slice(0, PRICE_TIERS.find((t) => t.key === key).included).map((s) => s.key)));
+    setSelected(new Set(SUITES.slice(0, priceTiers().find((t) => t.key === key).included).map((s) => s.key)));
   };
 
   const toggleSuite = (key) => {
@@ -215,8 +217,8 @@ function PriceCalculator() {
       <div className="cl-calc-lines">
         <div><span>{tier.name} plan — {tier.included} suites included</span><b>{naira(tier.baseFee)}/mo</b></div>
         {extra > 0 && <div><span>{extra} extra suite{extra === 1 ? '' : 's'} × {naira(tier.extraFee)}</span><b>{naira(extra * tier.extraFee)}/mo</b></div>}
-        <div><span>{staffCount} staff × {naira(PER_STAFF_FEE)}</span><b>{naira(staffCount * PER_STAFF_FEE)}/mo</b></div>
-        {yearly && <div className="save"><span>Yearly billing — {Math.round(ANNUAL_DISCOUNT * 100)}% off</span><b>−{naira(Math.round(monthly * 12 * ANNUAL_DISCOUNT))}/yr</b></div>}
+        <div><span>{staffCount} staff × {naira(perStaff)}</span><b>{naira(staffCount * perStaff)}/mo</b></div>
+        {yearly && <div className="save"><span>Yearly billing — {Math.round(annualDiscount * 100)}% off</span><b>−{naira(Math.round(monthly * 12 * annualDiscount))}/yr</b></div>}
       </div>
       <div className="cl-calc-result">
         <div>
@@ -275,6 +277,7 @@ const faqs = [
 ];
 
 export default function Landing() {
+  usePricing(); // re-renders the pricing cards once live prices load
   const reduce = useReducedMotion();
   const heroTextProps = reduce
     ? {}
@@ -679,29 +682,25 @@ export default function Landing() {
             <p className="cl-sec-lede">Every tier is à la carte — choose exactly the suites your business needs on any of them. Tiers differ in how many suites are included, your base fee, and support level, not in what you're allowed to use. No forex markup, no dollar pricing, and your rate locks in at sign-up.</p>
           </Reveal>
           <CardCarousel className="cl-grid3" dotLabel="plan">
-            {[
-              {
-                key: 'startup', name: 'Startup', price: '15,000', included: 3, extra: '8,000',
-                pills: ['3 suites included', 'Standard support'],
-                rows: [['Suites of your choice', 'any 3'], ['Extra suite', '₦8,000/mo'], ['Per staff member', '₦2,000/mo'], ['Add more suites', 'anytime']],
-                quote: 'For a small team getting its operations out of spreadsheets and WhatsApp groups.',
-                cta: ['Start your space', '/signup?plan=startup', false],
-              },
-              {
-                key: 'standard', name: 'Standard', price: '25,000', included: 5, extra: '6,000', featured: true,
-                pills: ['5 suites included', 'Priority support'],
-                rows: [['Suites of your choice', 'any 5'], ['Extra suite', '₦6,000/mo'], ['Per staff member', '₦2,000/mo'], ['Add more suites', 'anytime']],
-                quote: 'What most growing companies land on — people, money and customers in one place.',
-                cta: ['Get started', '/signup?plan=standard', true],
-              },
-              {
-                key: 'enterprise', name: 'Enterprise', price: '45,000', included: 8, extra: '4,000',
-                pills: ['8 suites included', 'Dedicated onboarding'],
-                rows: [['Suites of your choice', 'any 8'], ['Extra suite', '₦4,000/mo'], ['Per staff member', '₦2,000/mo'], ['Custom work', 'scoped & quoted']],
-                quote: 'For established businesses standardising how they run across branches and states.',
-                cta: ['Talk to us', '#contact', false],
-              },
-            ].map((p, i) => (
+            {PLANS.map((plan) => {
+              const meta = {
+                startup:    { support: 'Standard support',     quote: 'For a small team getting its operations out of spreadsheets and WhatsApp groups.', cta: ['Start your space', '/signup?plan=startup', false], lastRow: ['Add more suites', 'anytime'] },
+                standard:   { support: 'Priority support',     quote: 'What most growing companies land on — people, money and customers in one place.', cta: ['Get started', '/signup?plan=standard', true], lastRow: ['Add more suites', 'anytime'], featured: true },
+                enterprise: { support: 'Dedicated onboarding', quote: 'For established businesses standardising how they run across branches and states.', cta: ['Talk to us', '#contact', false], lastRow: ['Custom work', 'scoped & quoted'] },
+              }[plan.key];
+              return {
+                key: plan.key, name: plan.name, price: plan.baseFee.toLocaleString('en-NG'),
+                included: plan.includedSuites, featured: meta.featured,
+                pills: [`${plan.includedSuites} suites included`, meta.support],
+                rows: [
+                  ['Suites of your choice', `any ${plan.includedSuites}`],
+                  ['Extra suite', `${naira(plan.extraSuiteFee)}/mo`],
+                  ['Per staff member', `${naira(PRICING.perStaff)}/mo`],
+                  meta.lastRow,
+                ],
+                quote: meta.quote, cta: meta.cta,
+              };
+            }).map((p, i) => (
               <Reveal className={`cl-pc${p.featured ? ' cl-pc-feat' : ''}`} key={p.key} delay={i * 0.06}>
                 {p.featured && <span className="cl-pc-badge">What most companies need</span>}
                 <div className="cl-pc-plan">{p.name}</div>

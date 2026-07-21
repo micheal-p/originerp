@@ -242,6 +242,11 @@ export async function supabaseApi(path, opts = {}) {
   if (head === 'POST /billing' && seg[1] === 'purchase-credits') {
     return callAdmin('purchase-credits', { credits: body.credits });
   }
+  if (head === 'POST /billing' && seg[1] === 'renew') {
+    const { data, error } = await supabase.rpc('request_renewal', { p_months: body.months || 1 });
+    if (error) fail(400, error.message);
+    return { transaction: data };
+  }
 
   // ---- platform admin (cross-org — RLS allows this only for is_platform_admin()) ----
   if (head === 'GET /platform' && seg[1] === 'organizations') {
@@ -255,6 +260,34 @@ export async function supabaseApi(path, opts = {}) {
     const { data, error } = await supabase.rpc('platform_all_profiles');
     if (error) fail(error.code === '42501' ? 403 : 400, error.message);
     return { profiles: data };
+  }
+  if (head === 'GET /platform' && seg[1] === 'pricing') {
+    const [plans, settings] = await Promise.all([
+      supabase.from('platform_pricing').select('*').order('sort_order'),
+      supabase.from('platform_billing_settings').select('*').maybeSingle(),
+    ]);
+    if (plans.error) fail(400, plans.error.message);
+    if (settings.error) fail(400, settings.error.message);
+    return { plans: plans.data, settings: settings.data };
+  }
+  if (head === 'POST /platform' && seg[1] === 'pricing') {
+    // RLS enforces is_platform_admin() on every row touched
+    const { data: { user } } = await supabase.auth.getUser();
+    for (const p of body.plans || []) {
+      const { error } = await supabase.from('platform_pricing').update({
+        base_fee_kobo: p.baseFeeKobo, included_suites: p.includedSuites,
+        extra_suite_fee_kobo: p.extraSuiteFeeKobo, updated_at: new Date().toISOString(), updated_by: user.id,
+      }).eq('plan_key', p.planKey);
+      if (error) fail(error.code === '42501' ? 403 : 400, error.message);
+    }
+    if (body.settings) {
+      const { error } = await supabase.from('platform_billing_settings').update({
+        per_staff_kobo: body.settings.perStaffKobo, annual_discount: body.settings.annualDiscount,
+        updated_at: new Date().toISOString(), updated_by: user.id,
+      }).eq('id', true);
+      if (error) fail(error.code === '42501' ? 403 : 400, error.message);
+    }
+    return { ok: true };
   }
   if (head === 'GET /platform' && seg[1] === 'transactions') {
     const { data, error } = await supabase.from('billing_transactions').select('*').order('created_at', { ascending: false });

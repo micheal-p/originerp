@@ -7,16 +7,20 @@
 // human — never guesses.
 // ============================================================================
 
-import { PLANS, PER_STAFF_FEE, naira } from '../lib/pricing.js';
+import { PLANS, PRICING, loadPricing, naira } from '../lib/pricing.js';
 
-// derived, never restated — the chat quotes whatever the platform charges
-const TIERS = PLANS.map((t) => ({ key: t.key, name: t.name, base: t.baseFee, included: t.includedSuites, extra: t.extraSuiteFee }));
-const PER_STAFF = PER_STAFF_FEE;
+// derived, never restated — the chat quotes whatever the platform charges.
+// Read at CALL time (not import time) so answers pick up the live published
+// prices once loadPricing() resolves.
+loadPricing();
+const tiers = () => PLANS.map((t) => ({ key: t.key, name: t.name, base: t.baseFee, included: t.includedSuites, extra: t.extraSuiteFee }));
 const N = naira;
 
 // "how much for 12 staff on standard?" → a real quote, computed.
 function priceQuote(text) {
   const staffMatch = text.match(/(\d{1,4})\s*(staff|employees?|people|workers|team members?)/i);
+  const TIERS = tiers();
+  const PER_STAFF = PRICING.perStaff;
   const tier = TIERS.find((t) => text.toLowerCase().includes(t.key)) || null;
   if (!staffMatch && !tier) return null;
   const staff = staffMatch ? Math.min(5000, Number(staffMatch[1])) : null;
@@ -53,7 +57,7 @@ const INTENTS = [
     id: 'pricing',
     phrases: ['how much', 'what does it cost', 'what does collarone cost', 'pricing', 'price list'],
     keys: ['cost', 'price', 'pay', 'fee', 'cheap', 'expensive', 'afford', 'monthly', 'subscription'],
-    answer: (text) => priceQuote(text) || `Every tier is à la carte — you pick the suites. ${TIERS.map((t) => `${t.name} is ${N(t.base)}/month with any ${t.included} suites included`).join(', ')}. Extra suites cost ${TIERS.map((t) => N(t.extra)).join('/')} each by tier, plus ${N(PER_STAFF)} per staff member on all tiers. Yearly billing saves 15%, no forex markup, and your rate locks in at sign-up. Tell me your team size and I'll do the exact arithmetic.`,
+    answer: (text) => priceQuote(text) || `Every tier is à la carte — you pick the suites. ${tiers().map((t) => `${t.name} is ${N(t.base)}/month with any ${t.included} suites included`).join(', ')}. Extra suites cost ${tiers().map((t) => N(t.extra)).join('/')} each by tier, plus ${N(PRICING.perStaff)} per staff member on all tiers. Yearly billing saves 15%, no forex markup, and your rate locks in at sign-up. Tell me your team size and I'll do the exact arithmetic.`,
     chips: ['Price for 10 staff on Standard', 'What suites are included?', 'Is there a trial?'],
   },
   {

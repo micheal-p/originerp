@@ -177,6 +177,82 @@ function AppErrorsPanel() {
   );
 }
 
+
+// Published price list — editing here changes what NEW signups see and lock
+// in. Existing orgs keep the rates stamped on their row at sign-up.
+function PricingPanel({ flash }) {
+  const [plans, setPlans] = useState([]);
+  const [settings, setSettings] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => { apiGet('/platform/pricing').then((d) => { setPlans(d.plans || []); setSettings(d.settings); }).catch(() => {}); };
+  useEffect(load, []);
+
+  const setPlan = (key, field, v) => setPlans((ps) => ps.map((x) => (x.plan_key === key ? { ...x, [field]: v } : x)));
+  const nairaField = (kobo) => Math.round(Number(kobo || 0) / 100);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await apiPost('/platform/pricing', {
+        plans: plans.map((x) => ({
+          planKey: x.plan_key,
+          baseFeeKobo: Math.round(Number(x.base_fee_naira ?? nairaField(x.base_fee_kobo)) * 100),
+          includedSuites: Number(x.included_suites),
+          extraSuiteFeeKobo: Math.round(Number(x.extra_fee_naira ?? nairaField(x.extra_suite_fee_kobo)) * 100),
+        })),
+        settings: settings ? {
+          perStaffKobo: Math.round(Number(settings.per_staff_naira ?? nairaField(settings.per_staff_kobo)) * 100),
+          annualDiscount: Number(settings.annual_pct ?? Math.round(Number(settings.annual_discount) * 100)) / 100,
+        } : undefined,
+      });
+      flash('Published prices updated — new signups lock these rates in. Existing customers are untouched.');
+      load();
+    } catch (e) { flash(e.message, true); } finally { setBusy(false); }
+  };
+
+  if (!plans.length) return null;
+  const cell = { width: 110 };
+  return (
+    <section className="pc-section">
+      <SectionHead title="Published pricing">
+        <button className="pc-btn sm primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save prices'}</button>
+      </SectionHead>
+      <p style={{ fontSize: 12.5, color: 'var(--pc-dim, #9aa0b0)', margin: '0 0 12px' }}>
+        These are the prices the landing page, signup and chat quote from now on. Changing them only affects NEW
+        sign-ups — every existing company keeps the rate locked on its own account.
+      </p>
+      <div className="pc-panel pc-tablewrap">
+        <table className="pc-table">
+          <thead><tr><th>Plan</th><th>Base fee (₦/mo)</th><th>Suites included</th><th>Extra suite (₦/mo)</th></tr></thead>
+          <tbody>
+            {plans.map((x) => (
+              <tr key={x.plan_key}>
+                <td style={{ textTransform: 'capitalize', fontWeight: 600 }}>{x.name || x.plan_key}</td>
+                <td><input className="pc-input" style={cell} type="number" min="0" value={x.base_fee_naira ?? nairaField(x.base_fee_kobo)} onChange={(e) => setPlan(x.plan_key, 'base_fee_naira', e.target.value)} /></td>
+                <td><input className="pc-input" style={{ width: 70 }} type="number" min="1" value={x.included_suites} onChange={(e) => setPlan(x.plan_key, 'included_suites', e.target.value)} /></td>
+                <td><input className="pc-input" style={cell} type="number" min="0" value={x.extra_fee_naira ?? nairaField(x.extra_suite_fee_kobo)} onChange={(e) => setPlan(x.plan_key, 'extra_fee_naira', e.target.value)} /></td>
+              </tr>
+            ))}
+            {settings && (
+              <tr>
+                <td style={{ fontWeight: 600 }}>All plans</td>
+                <td colSpan={2}>
+                  Per staff (₦/mo){' '}
+                  <input className="pc-input" style={cell} type="number" min="0" value={settings.per_staff_naira ?? nairaField(settings.per_staff_kobo)} onChange={(e) => setSettings((v) => ({ ...v, per_staff_naira: e.target.value }))} />
+                </td>
+                <td>
+                  Yearly discount %{' '}
+                  <input className="pc-input" style={{ width: 70 }} type="number" min="0" max="90" value={settings.annual_pct ?? Math.round(Number(settings.annual_discount) * 100)} onChange={(e) => setSettings((v) => ({ ...v, annual_pct: e.target.value }))} />
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function PromoCodesPanel({ flash }) {
   const [codes, setCodes] = useState([]);
   const [open, setOpen] = useState(false);
@@ -611,6 +687,8 @@ export default function PlatformAdmin() {
       <ContactMessagesPanel flash={flash} />
 
       <AppErrorsPanel />
+
+      <PricingPanel flash={flash} />
 
       <PromoCodesPanel flash={flash} />
 

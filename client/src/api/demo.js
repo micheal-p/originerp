@@ -1021,6 +1021,8 @@ export async function demoApi(path, opts = {}) {
   // Loans & advances — clean empty state in demo
   if (route === 'GET /payroll/loans') return { loans: [] };
   if (route === 'POST /payroll/loans') return fail(400, 'Loan requests are disabled in demo mode.');
+  // Billing renewals — demo has no real subscription to extend
+  if (route === 'POST /billing/renew') return fail(400, 'Renewals are disabled in demo mode.');
 
   // storefront funnel — demo-safe stubs so a prospect clicking through a
   // demo store gets believable behaviour instead of a 404
