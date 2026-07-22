@@ -622,18 +622,19 @@ export async function supabaseApi(path, opts = {}) {
     const patch = {};
     ['basic','housing','transport'].forEach((k) => { if (body[k] !== undefined) patch[k] = body[k]; });
     if (body.otherAllowances !== undefined) patch.other_allowances = body.otherAllowances;
+    if (body.annualRent !== undefined) patch.annual_rent = body.annualRent;
     if (body.effectiveDate !== undefined) patch.effective_date = body.effectiveDate;
     const { data, error } = await supabase.from('salary_structures').update(patch).eq('id', seg[2]).select().single();
     if (error) fail(400, error.message);
     return { structure: data };
   }
   if (head === 'POST /payroll' && seg[1] === 'salary') {
-    const { employeeId, basic, housing, transport, otherAllowances, effectiveDate } = body;
+    const { employeeId, basic, housing, transport, otherAllowances, annualRent, effectiveDate } = body;
     if (!employeeId) fail(400, 'employeeId is required.');
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('salary_structures').insert({
       employee_id: employeeId, basic: basic || 0, housing: housing || 0, transport: transport || 0,
-      other_allowances: otherAllowances || 0, effective_date: effectiveDate || new Date().toISOString().slice(0, 10), created_by: user.id, org_id: await myOrgId(),
+      other_allowances: otherAllowances || 0, annual_rent: annualRent || 0, effective_date: effectiveDate || new Date().toISOString().slice(0, 10), created_by: user.id, org_id: await myOrgId(),
     }).select().single();
     if (error) fail(400, error.message);
     return { structure: data };

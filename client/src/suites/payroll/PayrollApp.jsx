@@ -17,8 +17,8 @@ const NG_STATES = ['Abia','Adamawa','Akwa Ibom','Anambra','Bauchi','Bayelsa','Be
 function SalaryModal({ employee, structure = null, onClose, onSaved, onError }) {
   const { user } = useAuth();
   const [f, setF] = useState(() => structure
-    ? { basic: String(structure.basic), housing: String(structure.housing), transport: String(structure.transport), otherAllowances: String(structure.other_allowances), effectiveDate: structure.effective_date }
-    : { basic:'', housing:'', transport:'', otherAllowances:'', effectiveDate: new Date().toISOString().slice(0,10) });
+    ? { basic: String(structure.basic), housing: String(structure.housing), transport: String(structure.transport), otherAllowances: String(structure.other_allowances), annualRent: String(structure.annual_rent ?? 0), effectiveDate: structure.effective_date }
+    : { basic:'', housing:'', transport:'', otherAllowances:'', annualRent:'', effectiveDate: new Date().toISOString().slice(0,10) });
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const gross = ['basic','housing','transport','otherAllowances'].reduce((s, k) => s + (Number(f[k]) || 0), 0);
@@ -29,7 +29,7 @@ function SalaryModal({ employee, structure = null, onClose, onSaved, onError }) 
     try {
       const body = {
         employeeId: employee.id, basic: Number(f.basic) || 0, housing: Number(f.housing) || 0,
-        transport: Number(f.transport) || 0, otherAllowances: Number(f.otherAllowances) || 0, effectiveDate: f.effectiveDate,
+        transport: Number(f.transport) || 0, otherAllowances: Number(f.otherAllowances) || 0, annualRent: Number(f.annualRent) || 0, effectiveDate: f.effectiveDate,
       };
       if (structure) {
         // Correcting the latest structure — no new contract for a typo fix.
@@ -62,8 +62,13 @@ function SalaryModal({ employee, structure = null, onClose, onSaved, onError }) 
             <div className="field"><label>Other allowances (₦/mo)</label>
               <input className="input" type="number" min="0" value={f.otherAllowances} onChange={(e) => set('otherAllowances', e.target.value)} /></div>
           </div>
-          <div className="field"><label>Effective date</label>
-            <input className="input" type="date" value={f.effectiveDate} onChange={(e) => set('effectiveDate', e.target.value)} required /></div>
+          <div className="form-grid">
+            <div className="field"><label>Annual rent (₦/yr — rent relief)</label>
+              <input className="input" type="number" min="0" value={f.annualRent} onChange={(e) => set('annualRent', e.target.value)} placeholder="0" /></div>
+            <div className="field"><label>Effective date</label>
+              <input className="input" type="date" value={f.effectiveDate} onChange={(e) => set('effectiveDate', e.target.value)} required /></div>
+          </div>
+          <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>2026 Tax Act: PAYE relief is 20% of declared annual rent, capped at ₦500,000. Leave 0 if none declared.</p>
           <p className="muted" style={{ fontSize:13, margin:'4px 0 12px' }}>Gross: <b>{P.money(gross)}</b> / month</p>
           <div className="modal-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
