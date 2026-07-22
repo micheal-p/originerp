@@ -178,6 +178,47 @@ function AppErrorsPanel() {
 }
 
 
+const TX_TYPE = { activation_fee: 'Activation fee', credit_purchase: 'Seat credits', renewal: 'Renewal' };
+
+// Full money history across every org — pending, confirmed, everything.
+function TransactionsPanel({ transactions, orgName }) {
+  const [filter, setFilter] = useState('all');
+  const rows = transactions.filter((t) => (filter === 'all' ? true : t.status === filter)).slice(0, 200);
+  return (
+    <section className="pc-section">
+      <SectionHead title="Transactions" count={String(transactions.length)}>
+        {['all', 'pending', 'confirmed'].map((f) => (
+          <button key={f} className={`pc-btn sm${filter === f ? ' primary' : ''}`} onClick={() => setFilter(f)} style={{ textTransform: 'capitalize' }}>{f}</button>
+        ))}
+      </SectionHead>
+      <div className="pc-panel pc-tablewrap">
+        <table className="pc-table collapsible">
+          <thead><tr><th>Date</th><th>Organization</th><th>Type</th><th>Reference</th><th>Method</th><th className="r">Amount</th><th>Status</th></tr></thead>
+          <tbody>
+            {rows.length === 0 && <tr><td colSpan={7} className="pc-dim" style={{ fontSize: 12.5 }}>Nothing here yet.</td></tr>}
+            {rows.map((t) => (
+              <tr key={t.id}>
+                <td className="pc-mono pc-dim" style={{ fontSize: 12 }}>{fmtDate(t.created_at)}</td>
+                <td style={{ fontWeight: 550 }}>{orgName(t.org_id)}</td>
+                <td className="pc-dim">{TX_TYPE[t.type] || t.type}{t.type === 'renewal' ? ` · ${t.months === 12 ? '12 mo' : '1 mo'}` : ''}{t.type === 'credit_purchase' && t.credits_granted ? ` · ${t.credits_granted}` : ''}</td>
+                <td className="pc-mono pc-dim" style={{ fontSize: 11.5 }}>{t.reference}</td>
+                <td className="pc-dim">{t.method === 'paystack' ? 'Card' : 'Transfer'}</td>
+                <td className="num" style={{ fontWeight: 600 }}>{naira(t.amount_kobo)}</td>
+                <td>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                    <span className="pc-dot" style={{ background: t.status === 'confirmed' ? 'var(--ok)' : t.status === 'pending' ? '#e8b23f' : 'var(--faint)' }} />
+                    {t.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 // Published price list — editing here changes what NEW signups see and lock
 // in. Existing orgs keep the rates stamped on their row at sign-up.
 function PricingPanel({ flash }) {
@@ -513,6 +554,12 @@ export default function PlatformAdmin() {
 
   const { flash, toastNode } = useToast();
 
+  // Section tabs — hash-synced so a refresh (or a shared link) lands on the
+  // same view. One long scroll was unusable once the panel count grew.
+  const initialTab = (window.location.hash || '').replace('#', '') || 'overview';
+  const [tab, setTabState] = useState(['overview', 'orgs', 'revenue', 'inbox', 'audit'].includes(initialTab) ? initialTab : 'overview');
+  const setTab = (t) => { setTabState(t); window.history.replaceState(null, '', `#${t}`); };
+
   const [adminIds, setAdminIds] = useState([]);
   const [sites, setSites] = useState([]);
   const [themes, setThemes] = useState([]);
@@ -551,6 +598,12 @@ export default function PlatformAdmin() {
   }, [customerProfiles]);
 
   const pendingTx = transactions.filter((t) => t.status === 'pending');
+  const confirmedTx = transactions.filter((t) => t.status === 'confirmed');
+  const revenueAll = confirmedTx.reduce((s2, t) => s2 + t.amount_kobo, 0);
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+  const revenueThisMonth = confirmedTx
+    .filter((t) => new Date(t.confirmed_at || t.created_at).getTime() >= monthStart)
+    .reduce((s2, t) => s2 + t.amount_kobo, 0);
   const orgName = (id) => orgs.find((o) => o.id === id)?.name || (id ? id.slice(0, 8) : '—');
 
   const confirmPayment = async (txId) => {
@@ -624,8 +677,25 @@ export default function PlatformAdmin() {
     } catch (e) { flash(e.message, true); } finally { setDeleting(false); }
   };
 
+  const TAB_DEFS = [
+    ['overview', 'Overview', 0],
+    ['orgs', 'Organizations', 0],
+    ['revenue', 'Revenue', pendingTx.length],
+    ['inbox', 'Inbox', 0],
+    ['audit', 'Audit', 0],
+  ];
+
   return (
     <PlatformShell>
+      <nav className="pc-subtabs">
+        {TAB_DEFS.map(([key, label, badge]) => (
+          <button key={key} className={`pc-subtab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
+            {label}{badge > 0 && <span className="pc-subtab-badge">{badge}</span>}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'overview' && (<>
       <div className="pc-kpis" style={{ marginBottom: 10 }}>
         <div className="pc-kpi">
           <div className="pc-kpi-label">Organizations</div>
@@ -639,6 +709,11 @@ export default function PlatformAdmin() {
           <div className="pc-kpi-label">Active, last 24h</div>
           <div className="pc-kpi-value">{activeLast24h}</div>
           <div className="pc-kpi-sub">from sign-in timestamps, not live presence</div>
+        </div>
+        <div className="pc-kpi">
+          <div className="pc-kpi-label">Revenue (confirmed)</div>
+          <div className="pc-kpi-value">{naira(revenueAll)}</div>
+          <div className="pc-kpi-sub pc-mono">{naira(revenueThisMonth)} this month</div>
         </div>
         <div className="pc-kpi">
           <div className="pc-kpi-label">Pending payments</div>
@@ -666,7 +741,7 @@ export default function PlatformAdmin() {
                 {pendingTx.map((t) => (
                   <tr key={t.id}>
                     <td style={{ fontWeight: 550 }}>{orgName(t.org_id)}</td>
-                    <td className="pc-dim">{t.type === 'activation_fee' ? 'Activation fee' : 'Seat credits'}</td>
+                    <td className="pc-dim">{TX_TYPE[t.type] || t.type}{t.type === 'renewal' ? ` · ${t.months === 12 ? '12 mo' : '1 mo'}` : ''}</td>
                     <td className="pc-mono pc-dim">{t.reference}</td>
                     <td className="pc-dim">{fmtDate(t.created_at)}</td>
                     <td className="num" style={{ fontWeight: 600 }}>{naira(t.amount_kobo)}</td>
@@ -684,14 +759,23 @@ export default function PlatformAdmin() {
         </section>
       )}
 
+      </>)}
+
+      {tab === 'inbox' && (<>
       <ContactMessagesPanel flash={flash} />
 
       <AppErrorsPanel />
+      </>)}
+
+      {tab === 'revenue' && (<>
+      <TransactionsPanel transactions={transactions} orgName={orgName} />
 
       <PricingPanel flash={flash} />
 
       <PromoCodesPanel flash={flash} />
+      </>)}
 
+      {tab === 'orgs' && (<>
       <section className="pc-section">
         <SectionHead title="Organizations" count={String(orgs.length)} />
         {loading && <p className="pc-dim" style={{ fontSize: 13 }}>Loading…</p>}
@@ -795,7 +879,9 @@ export default function PlatformAdmin() {
         </div>
       </section>
       {previewTheme && <ThemePreviewModal theme={previewTheme} onClose={() => setPreviewTheme(null)} />}
+      </>)}
 
+      {tab === 'audit' && (
       <section className="pc-section">
         <SectionHead title="Audit log" count={String(auditLog.length)} />
         <div className="pc-panel">
@@ -816,6 +902,7 @@ export default function PlatformAdmin() {
           ))}
         </div>
       </section>
+      )}
 
       {deleteTarget && (
         <DeleteOrgModal org={deleteTarget} busy={deleting} onClose={() => setDeleteTarget(null)} onConfirm={deleteOrg} />
